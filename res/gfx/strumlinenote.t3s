@@ -1,2 +1,6 @@
--f rgba4 -z auto
-strumlinenote.png
+--atlas -f rgba4 -z auto
+strumlinenotes/strumlinenote.png
+strumlinenotes/strumlinenote_left_pressed.png
+strumlinenotes/strumlinenote_down_pressed.png
+strumlinenotes/strumlinenote_up_pressed.png
+strumlinenotes/strumlinenote_right_pressed.png

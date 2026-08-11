@@ -1,0 +1,5 @@
+--atlas -f rgba4 -z auto
+notes/note_left.png
+notes/note_down.png
+notes/note_up.png
+notes/note_right.png
