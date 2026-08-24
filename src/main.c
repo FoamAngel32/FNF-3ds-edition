@@ -11,9 +11,15 @@
 #include <sys/stat.h>
 #include <malloc.h>
 #include <string.h>
-#define NOTE_WINDOW 160
-#define JUDGMENT_LINE_Y (240 - 50)
-// const char meta_data_header[] = "FNF3DSMD";
+#define NOTE_WINDOW 150
+#define JUDGMENT_LINE_Y (240 - 40)
+#define STRUMLINE_START_X (60)
+#define STRUMLINE_INTERVAL (65)
+#define SPLASH_ANIM_SPEED 1
+const char chart_header[] = "EMBEDDEDFNFCHART";
+const char metadata_header[] = "EMBEDDEDFNFMETAD";
+const char characters_header[] = "EMBEDDEDFNFCHARA";
+const char stage_header[] = "EMBEDDEDFNFSTAGE";
 // song ids
 // 0 main song
 #define VORBIS_ID_SONG 0
@@ -39,6 +45,7 @@ static const int THREAD_STACK_SZ = 32 * 1024; // 32kB stack for audio thread
 // ---- END DEFINITIONS ----
 
 LightEvent s_event;
+LightEvent s_event2;
 volatile bool s_quit = false; // Quit flag
 
 // Copied from audio example with a slight bit of change
@@ -66,33 +73,49 @@ void stop_vorbis(int id);
 void load_vorbis(char *restrict song_path, int chn);
 void play_vorbis(int chn, bool loop, int id, float pitch);
 void create_audio_thread(void);
-void create_ms_counter_thread(void);
 C3D_RenderTarget *top_target, *bottom_target;
-C2D_SpriteSheet temp_sheet;
+// C3D_RenderTarget *bottom_target;
+// C2D_SpriteSheet temp_sheet;
 C2D_SpriteSheet sprite_sheets[4];
-C2D_Font fonts[2];
-static C2D_TextBuf staticTextBuf;
-static C2D_Text texts[9];
-static C2D_TextBuf printer_text_buf;
-static C2D_Text printer_text;
-C2D_Image images[8];
+// C2D_Font fonts[2];
+// static C2D_TextBuf staticTextBuf;
+// static C2D_Text texts[9];
+// static C2D_TextBuf printer_text_buf;
+// static C2D_Text printer_text;
+C2D_Image imgs_note[30];
 float notes[1024][2];
 char note_types[1024][2];
 float scrollSpeed;
-uint32_t note_count;
+u32 note_count;
 u16 freeplay_song_rating;
 u16 note_hitted;
 u8 end;
 u8 state;
 touchPosition touch;
-u32 keyHeld, keyDown;
+u32 keyHeld, keyDown, keyUp;
 u32 temp1;
-char counter_end;
+u8 counter_end;
 double time_ms;
+u8 thread_ms_req_0;
+u8 thread_ms_req_1;
+u8 thread_ms_req_2;
+u8 thread_ms_req_3;
+bool note_splash[4];
+bool is_new_3ds;
+bool count_start;
+u8 note_splash_frame[4][2];
 // void load_song_meta_data(char *restrict song_path);
-void load_song(char *restrict song_path);
+bool load_song(char *restrict song_path);
+bool held_area(int x, int y, int width, int height);
+bool touch_area(int x, int y, int width, int height);
+bool release_area(int x, int y, int width, int height);
+void draw_long_note(int id, float note_y, u8 a);
 int main(void)
 {
+    count_start = false;
+    ptmSysmInit();
+    PTMSYSM_CheckNew3DS(&is_new_3ds);
+    ptmSysmExit();
     hidInit();
     gfxInitDefault();
     romfsInit();
@@ -102,84 +125,376 @@ int main(void)
     create_audio_thread();
     C3D_Init(C3D_DEFAULT_CMDBUF_SIZE);
     C2D_Init(C2D_DEFAULT_MAX_OBJECTS);
+    // #define FORCE_SLOW_MODE
+    #ifndef FORCE_SLOW_MODE
+    if (is_new_3ds)
+    {
+        // PTMSYSM_ConfigureNew3DSCPU(0b11);
+        osSetSpeedupEnable(true);
+    }
+    #endif
     C2D_Prepare();
-    staticTextBuf = C2D_TextBufNew(256);
-    printer_text_buf = C2D_TextBufNew(256);
+    // staticTextBuf = C2D_TextBufNew(256);
+    // printer_text_buf = C2D_TextBufNew(256);
     // top_target = C2D_CreateScreenTarget(GFX_TOP, GFX_LEFT);
     bottom_target = C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT);
-    temp_sheet = C2D_SpriteSheetLoad("romfs:/gfx/strumlinenote.t3x");
-    images[0] = C2D_SpriteSheetGetImage(temp_sheet, 0);
-    temp_sheet = C2D_SpriteSheetLoad("romfs:/gfx/bottom_bg.t3x");
-    images[1] = C2D_SpriteSheetGetImage(temp_sheet, 0);
+    sprite_sheets[0] = C2D_SpriteSheetLoad("romfs:/gfx/bottom_bg.t3x");
+    sprite_sheets[1] = C2D_SpriteSheetLoad("romfs:/gfx/strumlinenote.t3x");
+    sprite_sheets[2] = C2D_SpriteSheetLoad("romfs:/gfx/note.t3x");
+    imgs_note[0] = C2D_SpriteSheetGetImage(sprite_sheets[0], 0);
+
+    imgs_note[1] = C2D_SpriteSheetGetImage(sprite_sheets[1], 0);
+    imgs_note[2] = C2D_SpriteSheetGetImage(sprite_sheets[1], 1);
+    imgs_note[3] = C2D_SpriteSheetGetImage(sprite_sheets[1], 2);
+    imgs_note[4] = C2D_SpriteSheetGetImage(sprite_sheets[1], 3);
+    imgs_note[5] = C2D_SpriteSheetGetImage(sprite_sheets[1], 4);
+
+    imgs_note[6] = C2D_SpriteSheetGetImage(sprite_sheets[2], 0);
+    imgs_note[7] = C2D_SpriteSheetGetImage(sprite_sheets[2], 1);
+    imgs_note[8] = C2D_SpriteSheetGetImage(sprite_sheets[2], 2);
+    imgs_note[9] = C2D_SpriteSheetGetImage(sprite_sheets[2], 3);
+
+    imgs_note[10] = C2D_SpriteSheetGetImage(sprite_sheets[1], 5);
+    imgs_note[11] = C2D_SpriteSheetGetImage(sprite_sheets[1], 6);
+    imgs_note[12] = C2D_SpriteSheetGetImage(sprite_sheets[1], 7);
+
+    imgs_note[13] = C2D_SpriteSheetGetImage(sprite_sheets[1], 8);
+    imgs_note[14] = C2D_SpriteSheetGetImage(sprite_sheets[1], 9);
+    imgs_note[15] = C2D_SpriteSheetGetImage(sprite_sheets[1], 10);
+
+    imgs_note[16] = C2D_SpriteSheetGetImage(sprite_sheets[1], 11);
+    imgs_note[17] = C2D_SpriteSheetGetImage(sprite_sheets[1], 12);
+    imgs_note[18] = C2D_SpriteSheetGetImage(sprite_sheets[1], 13);
+
+    imgs_note[19] = C2D_SpriteSheetGetImage(sprite_sheets[1], 14);
+    imgs_note[20] = C2D_SpriteSheetGetImage(sprite_sheets[1], 15);
+    imgs_note[21] = C2D_SpriteSheetGetImage(sprite_sheets[1], 16);
+
+    imgs_note[22] = C2D_SpriteSheetGetImage(sprite_sheets[2], 4);
+    imgs_note[23] = C2D_SpriteSheetGetImage(sprite_sheets[2], 5);
+
+    imgs_note[24] = C2D_SpriteSheetGetImage(sprite_sheets[2], 6);
+    imgs_note[25] = C2D_SpriteSheetGetImage(sprite_sheets[2], 7);
+
+    imgs_note[26] = C2D_SpriteSheetGetImage(sprite_sheets[2], 8);
+    imgs_note[27] = C2D_SpriteSheetGetImage(sprite_sheets[2], 9);
+
+    imgs_note[28] = C2D_SpriteSheetGetImage(sprite_sheets[2], 10);
+    imgs_note[29] = C2D_SpriteSheetGetImage(sprite_sheets[2], 11);
+
     consoleInit(GFX_TOP, NULL);
     // touched = false;
     load_vorbis("romfs:/music/songs/tutorial.ogg", 0);
     // load_song_meta_data("romfs:/data/tutorial/metadata.bin");
-    load_song("romfs:/data/normal/tutorial/chart.bin");
+    load_song("romfs:/data/songs/normal/tutorial/chart.bin");
     // printf("%f, %d, %f\n", scrollSpeed, note_count, notes[0][0]);
+    // printf("%d ", R_SUCCEEDED(result));
+    // printf("%d\n", is_new_3ds);
     play_vorbis(0, false, 0, 1.0);
-    create_ms_counter_thread();
+    u64 last_tick = svcGetSystemTick();
+    const double ticks_per_ms = SYSCLOCK_ARM11 / 1000.0;
+    note_hitted = 0;
     while (aptMainLoop() && !end)
     {
-        // hidScanInput();
-        // hidTouchRead(&touch);
-        // keyDown = hidKeysDown();
-        // keyHeld = hidKeysHeld();
-        // switch (state)
-        // {
-        // case 0:
-        //     break;
-        // case 1:
-        //     break;
-        // case 2:
-        //     break;
-        // }
-        // switch (state)
-        // {
-        // case 0:
-        //     break;
-        // case 1:
-        //     break;
-        // case 2:
-        //     break;
-        // }
-        // printf("%f ", time_ms);
+        hidScanInput();
+        hidTouchRead(&touch);
+        keyDown = hidKeysDown();
+        keyHeld = hidKeysHeld();
+        keyUp = hidKeysUp();
+        u64 current_tick = svcGetSystemTick();
+        double elapsed = (current_tick - last_tick) / ticks_per_ms;
+        // if(((u64)time_ms % 1000) == 0)
+        // printf("%f", time_ms);
+        if (elapsed > 0)
+        {
+            time_ms += elapsed;
+            last_tick = current_tick;
+        }
         C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+        // C2D_SceneBegin(top_target);
+        // C2D_TargetClear(top_target, C2D_Color32f(0, 0, 0, 1));
         C2D_SceneBegin(bottom_target);
-        // C2D_TargetClear(bottom_target, C2D_Color32(255, 255, 255, 255));
-        C2D_DrawImageAt(images[1], 0, 0, 0, NULL, 1.0f, 1.0f);
-        C2D_DrawImageAtRotated(images[0], 80, JUDGMENT_LINE_Y, 0, (90 * M_PI / 180.0f), NULL, 1.0f, 1.0f);
-        C2D_DrawImageAtRotated(images[0], 140, JUDGMENT_LINE_Y, 0, 0, NULL, 1.0f, 1.0f);
-        C2D_DrawImageAtRotated(images[0], 200, JUDGMENT_LINE_Y, 0, (180 * M_PI / 180.0f), NULL, 1.0f, 1.0f);
-        C2D_DrawImageAtRotated(images[0], 260, JUDGMENT_LINE_Y, 0, (-90 * M_PI / 180.0f), NULL, 1.0f, 1.0f);
+        C2D_TargetClear(bottom_target, C2D_Color32f(0, 0, 0, 1));
+        C2D_DrawImageAt(imgs_note[0], 0, 0, 0, NULL, 1.0f, 1.0f);
         int temp0;
+        if (keyHeld & KEY_LEFT || held_area(STRUMLINE_START_X + 0 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
+        {
+            if (!note_splash[0])
+            {
+                thread_ms_req_0 = 1;
+            }
+            if (note_splash[0])
+            {
+                if (note_splash_frame[0][0] < SPLASH_ANIM_SPEED)
+                    ++note_splash_frame[0][0];
+                else
+                {
+                    note_splash_frame[0][0] = 0;
+                    ++note_splash_frame[0][1];
+                    if (note_splash_frame[0][1] > 2)
+                        note_splash_frame[0][1] = 2;
+                }
+                C2D_DrawImageAtRotated(imgs_note[10 + note_splash_frame[0][1]], STRUMLINE_START_X + 0 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, 0, NULL, 1.0f, 1.0f);
+            }
+            else
+                C2D_DrawImageAtRotated(imgs_note[2], STRUMLINE_START_X + 0 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, 0, NULL, 1.0f, 1.0f);
+        }
+        else
+            C2D_DrawImageAtRotated(imgs_note[1], STRUMLINE_START_X + 0 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, (90 * M_PI / 180.0f), NULL, 1.0f, 1.0f);
+        if (keyHeld & KEY_DOWN || held_area(STRUMLINE_START_X + 1 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
+        {
+            if (!note_splash[1])
+            {
+                thread_ms_req_1 = 2;
+            }
+
+            if (note_splash[1])
+            {
+                if (note_splash_frame[1][0] < SPLASH_ANIM_SPEED)
+                    ++note_splash_frame[1][0];
+                else
+                {
+                    note_splash_frame[1][0] = 0;
+                    ++note_splash_frame[1][1];
+                    if (note_splash_frame[1][1] > 2)
+                        note_splash_frame[1][1] = 2;
+                }
+                C2D_DrawImageAtRotated(imgs_note[13 + note_splash_frame[1][1]], STRUMLINE_START_X + 1 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, 0, NULL, 1.0f, 1.0f);
+            }
+            else
+                C2D_DrawImageAtRotated(imgs_note[3], STRUMLINE_START_X + 1 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, 0, NULL, 1.0f, 1.0f);
+        }
+        else
+            C2D_DrawImageAtRotated(imgs_note[1], STRUMLINE_START_X + 1 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, 0, NULL, 1.0f, 1.0f);
+        if (keyHeld & KEY_UP || held_area(STRUMLINE_START_X + 2 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
+        {
+            if (!note_splash[2])
+            {
+                thread_ms_req_2 = 3;
+            }
+            if (note_splash[2])
+            {
+                if (note_splash_frame[2][0] < SPLASH_ANIM_SPEED)
+                    ++note_splash_frame[2][0];
+                else
+                {
+                    note_splash_frame[2][0] = 0;
+                    ++note_splash_frame[2][1];
+                    if (note_splash_frame[2][1] > 2)
+                        note_splash_frame[2][1] = 2;
+                }
+                C2D_DrawImageAtRotated(imgs_note[16 + note_splash_frame[2][1]], STRUMLINE_START_X + 2 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, 0, NULL, 1.0f, 1.0f);
+            }
+            else
+                C2D_DrawImageAtRotated(imgs_note[4], STRUMLINE_START_X + 2 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, 0, NULL, 1.0f, 1.0f);
+        }
+        else
+            C2D_DrawImageAtRotated(imgs_note[1], STRUMLINE_START_X + 2 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, (180 * M_PI / 180.0f), NULL, 1.0f, 1.0f);
+        if (keyHeld & KEY_RIGHT || held_area(STRUMLINE_START_X + 3 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
+        {
+            if (!note_splash[3])
+            {
+                thread_ms_req_3 = 4;
+            }
+            if (note_splash[3])
+            {
+                if (note_splash_frame[3][0] < SPLASH_ANIM_SPEED)
+                    ++note_splash_frame[3][0];
+                else
+                {
+                    note_splash_frame[3][0] = 0;
+                    ++note_splash_frame[3][1];
+                    if (note_splash_frame[3][1] > 2)
+                        note_splash_frame[3][1] = 2;
+                }
+                C2D_DrawImageAtRotated(imgs_note[19 + note_splash_frame[3][1]], STRUMLINE_START_X + 3 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, 0, NULL, 1.0f, 1.0f);
+            }
+            else
+                C2D_DrawImageAtRotated(imgs_note[5], STRUMLINE_START_X + 3 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, 0, NULL, 1.0f, 1.0f);
+        }
+        else
+            C2D_DrawImageAtRotated(imgs_note[1], STRUMLINE_START_X + 3 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, (-90 * M_PI / 180.0f), NULL, 1.0f, 1.0f);
         for (temp0 = 0; temp0 < note_count; ++temp0)
         {
             float note_y = JUDGMENT_LINE_Y - (notes[temp0][0] - time_ms) * scrollSpeed;
-            if(note_types[temp0][1] || (note_y < -50) || (note_y > 300))
+            float note_end_y = JUDGMENT_LINE_Y - ((notes[temp0][0]+notes[temp0][1]) - time_ms) * scrollSpeed;
+            if ((note_y < -50) || (note_end_y > 300))
                 continue;
+            if (note_types[temp0][1])
+            {
+                continue;
+            }
+            if (notes[temp0][1] == 0)
+            {
+                if (((time_ms < (notes[temp0][0] + NOTE_WINDOW))) && (time_ms > (notes[temp0][0] - NOTE_WINDOW)))
+                {
+                    if ((note_types[temp0][1] & 0b00000001) == 0)
+                    {
+                        if (note_types[temp0][0] == 0)
+                        {
+                            if (keyDown & KEY_LEFT || touch_area(STRUMLINE_START_X + 0 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
+                            {
+                                note_types[temp0][1] |= 0b1;
+                            }
+                        }
+                        else if (note_types[temp0][0] == 1)
+                        {
+                            if (keyDown & KEY_DOWN || touch_area(STRUMLINE_START_X + 1 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
+                            {
+                                note_types[temp0][1] |= 0b1;
+                            }
+                        }
+                        else if (note_types[temp0][0] == 2)
+                        {
+                            if (keyDown & KEY_UP || touch_area(STRUMLINE_START_X + 2 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
+                            {
+                                note_types[temp0][1] |= 0b1;
+                            }
+                        }
+                        else if (note_types[temp0][0] == 3)
+                        {
+                            if (keyDown & KEY_RIGHT || touch_area(STRUMLINE_START_X + 3 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
+                            {
+                                note_types[temp0][1] |= 0b1;
+                            }
+                        }
+                    }
+                    if (((note_types[temp0][1] & 0b00000010) == 0) && (note_types[temp0][1] & 0b00000001) != 0)
+                    {
+                        if (note_types[temp0][0] == 0)
+                        {
+                            if (keyHeld & KEY_LEFT || held_area(STRUMLINE_START_X + 0 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
+                            {
+                                if (thread_ms_req_0)
+                                {
+                                    note_types[temp0][1] |= 0b10;
+                                    note_splash[0] = true;
+                                    thread_ms_req_0 = 0;
+                                }
+                            }
+                        }
+                        else if (note_types[temp0][0] == 1)
+                        {
+                            if (keyHeld & KEY_DOWN || held_area(STRUMLINE_START_X + 1 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
+                            {
+                                if (thread_ms_req_1)
+                                {
+                                    note_types[temp0][1] |= 0b10;
+                                    note_splash[1] = true;
+                                    thread_ms_req_1 = 0;
+                                }
+                            }
+                        }
+                        else if (note_types[temp0][0] == 2)
+                        {
+                            // printf("UP KEY!");
+                            if (keyHeld & KEY_UP || held_area(STRUMLINE_START_X + 2 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
+                            {
+                                if (thread_ms_req_2)
+                                {
+                                    note_types[temp0][1] |= 0b10;
+                                    note_splash[2] = true;
+                                    thread_ms_req_2 = 0;
+                                }
+                            }
+                        }
+                        else if (note_types[temp0][0] == 3)
+                        {
+                            if (keyHeld & KEY_RIGHT || held_area(STRUMLINE_START_X + 3 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
+                            {
+                                if (thread_ms_req_3)
+                                {
+                                    note_types[temp0][1] |= 0b10;
+                                    note_splash[3] = true;
+                                    thread_ms_req_3 = 0;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (notes[temp0][1] > 0)
+                draw_long_note(temp0, note_y, note_types[temp0][0]);
             if (note_types[temp0][0] == 0)
             {
                 // printf("LEFT KEY!");
-                C2D_DrawImageAtRotated(images[0], 80, note_y, 0, (90 * M_PI / 180.0f), NULL, 1.0f, 1.0f);
+                C2D_DrawImageAt(imgs_note[6], STRUMLINE_START_X + 0 * STRUMLINE_INTERVAL - 32, note_y - 32, 0, NULL, 1.0f, 1.0f);
             }
             else if (note_types[temp0][0] == 1)
             {
                 // printf("DOWN KEY!");
-                C2D_DrawImageAtRotated(images[0], 140, note_y, 0, 0, NULL, 1.0f, 1.0f);
+                C2D_DrawImageAt(imgs_note[7], STRUMLINE_START_X + 1 * STRUMLINE_INTERVAL - 32, note_y - 32, 0, NULL, 1.0f, 1.0f);
             }
             else if (note_types[temp0][0] == 2)
             {
                 // printf("UP KEY!");
-                C2D_DrawImageAtRotated(images[0], 200, note_y, 0, (180 * M_PI / 180.0f), NULL, 1.0f, 1.0f);
+                C2D_DrawImageAt(imgs_note[8], STRUMLINE_START_X + 2 * STRUMLINE_INTERVAL - 32, note_y - 32, 0, NULL, 1.0f, 1.0f);
             }
             else if (note_types[temp0][0] == 3)
             {
                 // printf("RIGHT KEY!");
-                C2D_DrawImageAtRotated(images[0], 260, note_y, 0, (-90 * M_PI / 180.0f), NULL, 1.0f, 1.0f);
+                C2D_DrawImageAt(imgs_note[9], STRUMLINE_START_X + 3 * STRUMLINE_INTERVAL - 32, note_y - 32, 0, NULL, 1.0f, 1.0f);
             }
         }
         C3D_FrameEnd(0);
+        if (thread_ms_req_0)
+        {
+            note_splash[0] = false;
+            note_splash_frame[0][0] = 0;
+            note_splash_frame[0][1] = 0;
+            thread_ms_req_0 = 0;
+        }
+        if (thread_ms_req_1)
+        {
+            note_splash[1] = false;
+            note_splash_frame[1][0] = 0;
+            note_splash_frame[1][1] = 0;
+            thread_ms_req_1 = 0;
+        }
+        if (thread_ms_req_2)
+        {
+            note_splash[2] = false;
+            note_splash_frame[2][0] = 0;
+            note_splash_frame[2][1] = 0;
+            thread_ms_req_2 = 0;
+        }
+        if (thread_ms_req_3)
+        {
+            note_splash[3] = false;
+            note_splash_frame[3][0] = 0;
+            note_splash_frame[3][1] = 0;
+            thread_ms_req_3 = 0;
+        }
+        if (keyUp & KEY_LEFT)
+        {
+            note_splash[0] = false;
+            note_splash_frame[0][0] = 0;
+            note_splash_frame[0][1] = 0;
+        }
+        if (keyUp & KEY_DOWN)
+        {
+            note_splash[1] = false;
+            note_splash_frame[1][0] = 0;
+            note_splash_frame[1][1] = 0;
+        }
+        if (keyUp & KEY_UP)
+        {
+            note_splash[2] = false;
+            note_splash_frame[2][0] = 0;
+            note_splash_frame[2][1] = 0;
+        }
+        if (keyUp & KEY_RIGHT)
+        {
+            note_splash[3] = false;
+            note_splash_frame[3][0] = 0;
+            note_splash_frame[3][1] = 0;
+        }
+        if (keyUp & KEY_TOUCH)
+        {
+            memset(note_splash_frame, 0, sizeof(note_splash_frame));
+            memset(note_splash, 0, sizeof(note_splash));
+        }
         gspWaitForVBlank();
     }
     counter_end = true;
@@ -192,6 +507,47 @@ int main(void)
     gfxExit();
     return EXIT_SUCCESS;
 }
+void draw_long_note(int id, float note_y, u8 a)
+{
+    float note_end_y = JUDGMENT_LINE_Y - ((notes[id][0] + notes[id][1]) - time_ms) * scrollSpeed;
+    // note_end_y += 20;
+    float long_note_x = (STRUMLINE_START_X + a * STRUMLINE_INTERVAL - 23) + 16;
+    float current_y = note_y - 10;
+    for (; current_y > note_end_y; current_y -= 20)
+    {
+        C2D_DrawImageAt(imgs_note[22 + a * 2], long_note_x, current_y, 0, NULL, 1.0f, -1.0f);
+    }
+    // current_y -= 20;
+    C2D_DrawImageAt(imgs_note[23 + a * 2], long_note_x, current_y, 0, NULL, 1.0f, -1.0f);
+}
+bool held_area(int x, int y, int width, int height)
+{
+    if (keyHeld & KEY_TOUCH)
+    {
+        if (((touch.px > x) && (touch.px < (x + width))) && ((touch.py > y) && (touch.py < (y + height))))
+            return true;
+    }
+    return false;
+}
+bool touch_area(int x, int y, int width, int height)
+{
+    if (keyDown & KEY_TOUCH)
+    {
+        if (((touch.px > x) && (touch.px < (x + width))) && ((touch.py > y) && (touch.py < (y + height))))
+            return true;
+    }
+    return false;
+}
+bool release_area(int x, int y, int width, int height)
+{
+    if (keyUp & KEY_TOUCH)
+    {
+        if (((touch.px > x) && (touch.px < (x + width))) && ((touch.py > y) && (touch.py < (y + height))))
+            return true;
+    }
+    return false;
+}
+
 // void load_song_meta_data(char *restrict song_path)
 // {
 //     FILE *fh = fopen(song_path, "rb");
@@ -221,14 +577,24 @@ int main(void)
 //     freeplay_song_rating = (u16)(low | (high << 8));
 //     fclose(fh);
 // }
-void load_song(char *restrict song_path)
+bool load_song(char *restrict song_path)
 {
+    unsigned char raw_float[4];
     int temp0;
-    FILE *fh = fopen(song_path, "rb");
+    char magic[17];
     unsigned char b0, b1, b2, b3;
-    b0 = fgetc(fh);
-    b1 = fgetc(fh);
-    scrollSpeed = b0 | (b1 << 8);
+    FILE *fh = fopen(song_path, "rb");
+    magic[16] = 0;
+    fread(magic, 1, 16, fh);
+    if (memcmp(magic, chart_header, 16) != 0)
+    {
+        return false;
+    }
+    raw_float[0] = fgetc(fh);
+    raw_float[1] = fgetc(fh);
+    raw_float[2] = fgetc(fh);
+    raw_float[3] = fgetc(fh);
+    memcpy(&scrollSpeed, raw_float, sizeof(scrollSpeed));
     scrollSpeed /= 10;
     b0 = fgetc(fh);
     b1 = fgetc(fh);
@@ -237,7 +603,6 @@ void load_song(char *restrict song_path)
     note_count = b0 | (b1 << 8) | (b2 << 16) | (b3 << 24);
     for (temp0 = 0; temp0 < note_count; ++temp0)
     {
-        unsigned char raw_float[4];
         raw_float[0] = fgetc(fh);
         raw_float[1] = fgetc(fh);
         raw_float[2] = fgetc(fh);
@@ -249,9 +614,10 @@ void load_song(char *restrict song_path)
         raw_float[3] = fgetc(fh);
         memcpy(&notes[temp0][1], raw_float, sizeof(notes[temp0][1]));
         note_types[temp0][0] = fgetc(fh);
-        note_types[temp0][1] = false;
+        note_types[temp0][1] = 0;
     }
     fclose(fh);
+    return true;
 }
 bool audioInit(OggVorbis *vorbisFile_, int chn, int id, float pitch)
 {
@@ -442,93 +808,75 @@ void create_audio_thread(void)
     {
         oggs[temp1].done = 1;
     }
-    threadId_audio = threadCreate(audioThread, NULL,
-                                  THREAD_STACK_SZ, priority,
-                                  THREAD_AFFINITY, true);
-}
-void thread_ms_counter(void *const unused)
-{
-    u64 last_tick = svcGetSystemTick();
-    const double ticks_per_ms = SYSCLOCK_ARM11 / 1000;
-    char detect;
-    note_hitted = 0;
-    while (!counter_end)
+    if (is_new_3ds)
     {
-        hidScanInput();
-        hidTouchRead(&touch);
-        keyDown = hidKeysDown();
-        keyHeld = hidKeysHeld();
-        u64 current_tick = svcGetSystemTick();
-        double elapsed = (current_tick - last_tick) / ticks_per_ms;
-
-        if (elapsed > 0)
-        {
-            time_ms += elapsed;
-            last_tick = current_tick;
-        }
-        int temp0;
-        for (temp0 = 0; temp0 < note_count; ++temp0)
-        {
-            if ((time_ms < (notes[temp0][0] + NOTE_WINDOW)) && (time_ms > (notes[temp0][0] - NOTE_WINDOW)))
-            {
-                if (note_types[temp0][1])
-                    continue;
-                if (note_types[temp0][0] == 0)
-                {
-                    // printf("LEFT KEY!");
-                    if (keyDown & KEY_LEFT)
-                    {
-                        note_types[temp0][1] = true;
-                        printf("HITTED!\n");
-                    }
-                }
-                else if (note_types[temp0][0] == 1)
-                {
-                    // printf("DOWN KEY!");
-                    if (keyDown & KEY_DOWN)
-                    {
-                        note_types[temp0][1] = true;
-                        printf("HITTED!\n");
-                    }
-                }
-                else if (note_types[temp0][0] == 2)
-                {
-                    // printf("UP KEY!");
-                    if (keyDown & KEY_UP)
-                    {
-                        note_types[temp0][1] = true;
-                        printf("HITTED!\n");
-                    }
-                }
-                else if (note_types[temp0][0] == 3)
-                {
-                    // printf("RIGHT KEY!");
-                    if (keyDown & KEY_RIGHT)
-                    {
-                        note_types[temp0][1] = true;
-                        printf("HITTED!\n");
-                    }
-                }
-            }
-        }
-        svcSleepThread(80000);
+        threadId_audio = threadCreate(audioThread, NULL,
+                                      THREAD_STACK_SZ, priority,
+                                      2, true);
     }
+    else
+        threadId_audio = threadCreate(audioThread, NULL,
+                                      THREAD_STACK_SZ, priority,
+                                      THREAD_AFFINITY, true);
 }
-void create_ms_counter_thread(void)
-{
-    // LightEvent_Init(&s_event, RESET_ONESHOT);
+// void thread_ms_counter(void *const unused)
+// {
 
-    // Set the thread priority to the main thread's priority ...
-    int32_t priority = 0x30;
-    svcGetThreadPriority(&priority, CUR_THREAD_HANDLE);
-    // ... then subtract 1, as lower number => higher actual priority ...
-    priority -= 1;
-    // ... finally, clamp it between 0x18 and 0x3F to guarantee that it's valid.
-    priority = priority < 0x18 ? 0x18 : priority;
-    priority = priority > 0x3F ? 0x3F : priority;
-    counter_end = false;
-    // Start the thread, passing the address of our vorbisFile as an argument.
-    threadId_ms_counter = threadCreate(thread_ms_counter, NULL,
-                                       THREAD_STACK_SZ, priority,
-                                       THREAD_AFFINITY, true);
-}
+//     while (!counter_end)
+//     {
+
+//     }
+
+//     // if (keyUp & KEY_LEFT)
+//     // {
+//     //     note_splash[0] = false;
+//     //     note_splash_frame[0][0] = note_splash_frame[0][1] = 0;
+//     // }
+//     // if (keyUp & KEY_DOWN)
+//     // {
+//     //     note_splash[1] = false;
+//     //     note_splash_frame[1][0] = note_splash_frame[1][1] = 0;
+//     // }
+//     // if (keyUp & KEY_UP)
+//     // {
+//     //     note_splash[2] = false;
+//     //     note_splash_frame[2][0] = note_splash_frame[2][1] = 0;
+//     // }
+//     // if (keyUp & KEY_RIGHT)
+//     // {
+//     //     note_splash[3] = false;
+//     //     note_splash_frame[3][0] = note_splash_frame[3][1] = 0;
+//     // }
+//     // if (keyUp & KEY_TOUCH)
+//     // {
+//     //     int temp0;
+//     //     for (temp0 = 0; temp0 < 4; ++temp0)
+//     //     {
+//     //         note_splash[temp0] = false;
+//     //         note_splash_frame[temp0][0] = note_splash_frame[temp0][1] = 0;
+//     //     }
+//     // }
+// }
+// void create_ms_counter_thread(void)
+// {
+//     // LightEvent_Init(&s_event2, RESET_ONESHOT);
+
+//     // Set the thread priority to the main thread's priority ...
+//     int32_t priority = 0x30;
+//     svcGetThreadPriority(&priority, CUR_THREAD_HANDLE);
+//     // ... then subtract 1, as lower number => higher actual priority ...
+//     priority -= 1;
+//     // ... finally, clamp it between 0x18 and 0x3F to guarantee that it's valid.
+//     priority = priority < 0x18 ? 0x18 : priority;
+//     priority = priority > 0x3F ? 0x3F : priority;
+//     counter_end = false;
+//     // Start the thread, passing the address of our vorbisFile as an argument.
+//     if (is_new_3ds)
+//         threadId_ms_counter = threadCreate(thread_ms_counter, NULL,
+//                                            THREAD_STACK_SZ, priority,
+//                                            2, true);
+//     else
+//         threadId_ms_counter = threadCreate(thread_ms_counter, NULL,
+//                                            THREAD_STACK_SZ, priority,
+//                                            THREAD_AFFINITY, true);
+// }
