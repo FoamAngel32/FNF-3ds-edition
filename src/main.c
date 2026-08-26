@@ -83,7 +83,7 @@ C2D_SpriteSheet sprite_sheets[4];
 // static C2D_TextBuf printer_text_buf;
 // static C2D_Text printer_text;
 C2D_Image imgs_note[30];
-float notes[1024][2];
+float notes[1024][3];
 char note_types[1024][2];
 float scrollSpeed;
 u32 note_count;
@@ -96,10 +96,10 @@ u32 keyHeld, keyDown, keyUp;
 u32 temp1;
 u8 counter_end;
 double time_ms;
-u8 thread_ms_req_0;
-u8 thread_ms_req_1;
-u8 thread_ms_req_2;
-u8 thread_ms_req_3;
+u8 music_hit_req_0;
+u8 music_hit_req_1;
+u8 music_hit_req_2;
+u8 music_hit_req_3;
 bool note_splash[4];
 bool is_new_3ds;
 bool count_start;
@@ -125,14 +125,14 @@ int main(void)
     create_audio_thread();
     C3D_Init(C3D_DEFAULT_CMDBUF_SIZE);
     C2D_Init(C2D_DEFAULT_MAX_OBJECTS);
-    // #define FORCE_SLOW_MODE
-    #ifndef FORCE_SLOW_MODE
+// #define FORCE_SLOW_MODE
+#ifndef FORCE_SLOW_MODE
     if (is_new_3ds)
     {
         // PTMSYSM_ConfigureNew3DSCPU(0b11);
         osSetSpeedupEnable(true);
     }
-    #endif
+#endif
     C2D_Prepare();
     // staticTextBuf = C2D_TextBufNew(256);
     // printer_text_buf = C2D_TextBufNew(256);
@@ -219,9 +219,15 @@ int main(void)
         int temp0;
         if (keyHeld & KEY_LEFT || held_area(STRUMLINE_START_X + 0 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
         {
+            if (music_hit_req_0 == 255)
+            {
+                note_splash_frame[0][1] = 0;
+                music_hit_req_0 = 1;
+                note_splash[0] = true;
+            }
             if (!note_splash[0])
             {
-                thread_ms_req_0 = 1;
+                music_hit_req_0 = 1;
             }
             if (note_splash[0])
             {
@@ -243,9 +249,15 @@ int main(void)
             C2D_DrawImageAtRotated(imgs_note[1], STRUMLINE_START_X + 0 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, (90 * M_PI / 180.0f), NULL, 1.0f, 1.0f);
         if (keyHeld & KEY_DOWN || held_area(STRUMLINE_START_X + 1 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
         {
+            if (music_hit_req_1 == 255)
+            {
+                note_splash_frame[1][1] = 0;
+                music_hit_req_1 = 1;
+                note_splash[1] = true;
+            }
             if (!note_splash[1])
             {
-                thread_ms_req_1 = 2;
+                music_hit_req_1 = 2;
             }
 
             if (note_splash[1])
@@ -268,9 +280,15 @@ int main(void)
             C2D_DrawImageAtRotated(imgs_note[1], STRUMLINE_START_X + 1 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, 0, NULL, 1.0f, 1.0f);
         if (keyHeld & KEY_UP || held_area(STRUMLINE_START_X + 2 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
         {
+            if (music_hit_req_2 == 255)
+            {
+                note_splash_frame[0][2] = 0;
+                music_hit_req_2 = 1;
+                note_splash[2] = true;
+            }
             if (!note_splash[2])
             {
-                thread_ms_req_2 = 3;
+                music_hit_req_2 = 3;
             }
             if (note_splash[2])
             {
@@ -292,9 +310,15 @@ int main(void)
             C2D_DrawImageAtRotated(imgs_note[1], STRUMLINE_START_X + 2 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, (180 * M_PI / 180.0f), NULL, 1.0f, 1.0f);
         if (keyHeld & KEY_RIGHT || held_area(STRUMLINE_START_X + 3 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
         {
+            if (music_hit_req_3 == 255)
+            {
+                note_splash_frame[3][1] = 0;
+                music_hit_req_3 = 1;
+                note_splash[3] = true;
+            }
             if (!note_splash[3])
             {
-                thread_ms_req_3 = 4;
+                music_hit_req_3 = 4;
             }
             if (note_splash[3])
             {
@@ -317,96 +341,134 @@ int main(void)
         for (temp0 = 0; temp0 < note_count; ++temp0)
         {
             float note_y = JUDGMENT_LINE_Y - (notes[temp0][0] - time_ms) * scrollSpeed;
-            float note_end_y = JUDGMENT_LINE_Y - ((notes[temp0][0]+notes[temp0][1]) - time_ms) * scrollSpeed;
+            float note_end_y = JUDGMENT_LINE_Y - ((notes[temp0][0] + notes[temp0][1]) - time_ms) * scrollSpeed;
             if ((note_y < -50) || (note_end_y > 300))
                 continue;
-            if (note_types[temp0][1])
+
+            if (((time_ms < (notes[temp0][0] + NOTE_WINDOW))) && (time_ms > (notes[temp0][0] - NOTE_WINDOW)))
             {
-                continue;
-            }
-            if (notes[temp0][1] == 0)
-            {
-                if (((time_ms < (notes[temp0][0] + NOTE_WINDOW))) && (time_ms > (notes[temp0][0] - NOTE_WINDOW)))
+                if ((note_types[temp0][1] & 0b00000001) == 0)
                 {
-                    if ((note_types[temp0][1] & 0b00000001) == 0)
+                    if (note_types[temp0][0] == 0)
                     {
-                        if (note_types[temp0][0] == 0)
+                        if (keyDown & KEY_LEFT || touch_area(STRUMLINE_START_X + 0 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
                         {
-                            if (keyDown & KEY_LEFT || touch_area(STRUMLINE_START_X + 0 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
-                            {
-                                note_types[temp0][1] |= 0b1;
-                            }
+                            note_types[temp0][1] |= 0b1;
+                            notes[temp0][2] = svcGetSystemTick();
+                            note_types[temp0][1] |= 0b00000100;
                         }
-                        else if (note_types[temp0][0] == 1)
+                    }
+                    else if (note_types[temp0][0] == 1)
+                    {
+                        if (keyDown & KEY_DOWN || touch_area(STRUMLINE_START_X + 1 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
                         {
-                            if (keyDown & KEY_DOWN || touch_area(STRUMLINE_START_X + 1 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
-                            {
-                                note_types[temp0][1] |= 0b1;
-                            }
+                            note_types[temp0][1] |= 0b1;
+                            notes[temp0][2] = svcGetSystemTick();
+                            note_types[temp0][1] |= 0b00000100;
                         }
-                        else if (note_types[temp0][0] == 2)
+                    }
+                    else if (note_types[temp0][0] == 2)
+                    {
+                        if (keyDown & KEY_UP || touch_area(STRUMLINE_START_X + 2 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
                         {
-                            if (keyDown & KEY_UP || touch_area(STRUMLINE_START_X + 2 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
-                            {
-                                note_types[temp0][1] |= 0b1;
-                            }
+                            note_types[temp0][1] |= 0b1;
+                            notes[temp0][2] = svcGetSystemTick();
+                            note_types[temp0][1] |= 0b00000100;
                         }
-                        else if (note_types[temp0][0] == 3)
+                    }
+                    else if (note_types[temp0][0] == 3)
+                    {
+                        if (keyDown & KEY_RIGHT || touch_area(STRUMLINE_START_X + 3 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
                         {
-                            if (keyDown & KEY_RIGHT || touch_area(STRUMLINE_START_X + 3 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
+                            note_types[temp0][1] |= 0b1;
+                            notes[temp0][2] = svcGetSystemTick();
+                            note_types[temp0][1] |= 0b00000100;
+                        }
+                    }
+                }
+                if (((note_types[temp0][1] & 0b00000010) == 0) && (note_types[temp0][1] & 0b00000001) != 0)
+                {
+                    if (note_types[temp0][0] == 0)
+                    {
+                        if (keyHeld & KEY_LEFT || held_area(STRUMLINE_START_X + 0 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
+                        {
+                            if (music_hit_req_0)
                             {
-                                note_types[temp0][1] |= 0b1;
+                                note_splash[0] = true;
+                                if (notes[temp0][1] > 0)
+                                {
+                                    music_hit_req_0 = 255;
+                                    notes[temp0][1] -= elapsed;
+                                    notes[temp0][0] += elapsed;
+                                }
+                                else
+                                {
+                                    music_hit_req_0 = 0;
+                                    note_types[temp0][1] |= 0b10;
+                                }
                             }
                         }
                     }
-                    if (((note_types[temp0][1] & 0b00000010) == 0) && (note_types[temp0][1] & 0b00000001) != 0)
+                    else if (note_types[temp0][0] == 1)
                     {
-                        if (note_types[temp0][0] == 0)
+                        if (keyHeld & KEY_DOWN || held_area(STRUMLINE_START_X + 1 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
                         {
-                            if (keyHeld & KEY_LEFT || held_area(STRUMLINE_START_X + 0 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
+                            if (music_hit_req_1)
                             {
-                                if (thread_ms_req_0)
+                                note_splash[1] = true;
+                                if (notes[temp0][1] > 0)
                                 {
+                                    music_hit_req_1 = 255;
+                                    notes[temp0][1] -= elapsed;
+                                    notes[temp0][0] += elapsed;
+                                }
+                                else
+                                {
+                                    music_hit_req_1 = 0;
                                     note_types[temp0][1] |= 0b10;
-                                    note_splash[0] = true;
-                                    thread_ms_req_0 = 0;
                                 }
                             }
                         }
-                        else if (note_types[temp0][0] == 1)
+                    }
+                    else if (note_types[temp0][0] == 2)
+                    {
+                        // printf("UP KEY!");
+                        if (keyHeld & KEY_UP || held_area(STRUMLINE_START_X + 2 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
                         {
-                            if (keyHeld & KEY_DOWN || held_area(STRUMLINE_START_X + 1 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
+                            if (music_hit_req_2)
                             {
-                                if (thread_ms_req_1)
+                                note_splash[2] = true;
+                                if (notes[temp0][1] > 0)
                                 {
+                                    music_hit_req_2 = 255;
+                                    notes[temp0][1] -= elapsed;
+                                    notes[temp0][0] += elapsed;
+                                }
+                                else
+                                {
+                                    music_hit_req_2 = 0;
                                     note_types[temp0][1] |= 0b10;
-                                    note_splash[1] = true;
-                                    thread_ms_req_1 = 0;
                                 }
                             }
                         }
-                        else if (note_types[temp0][0] == 2)
+                    }
+                    else if (note_types[temp0][0] == 3)
+                    {
+                        if (keyHeld & KEY_RIGHT || held_area(STRUMLINE_START_X + 3 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
                         {
-                            // printf("UP KEY!");
-                            if (keyHeld & KEY_UP || held_area(STRUMLINE_START_X + 2 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
+                            if (music_hit_req_3)
                             {
-                                if (thread_ms_req_2)
+                                note_splash[3] = true;
+                                if (notes[temp0][1] > 0)
                                 {
-                                    note_types[temp0][1] |= 0b10;
-                                    note_splash[2] = true;
-                                    thread_ms_req_2 = 0;
+                                    music_hit_req_3 = 255;
+                                    notes[temp0][1] -= elapsed;
+                                    notes[temp0][0] += elapsed;
                                 }
-                            }
-                        }
-                        else if (note_types[temp0][0] == 3)
-                        {
-                            if (keyHeld & KEY_RIGHT || held_area(STRUMLINE_START_X + 3 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
-                            {
-                                if (thread_ms_req_3)
+                                else
                                 {
+                                    music_hit_req_3 = 0;
                                     note_types[temp0][1] |= 0b10;
-                                    note_splash[3] = true;
-                                    thread_ms_req_3 = 0;
                                 }
                             }
                         }
@@ -416,6 +478,8 @@ int main(void)
 
             if (notes[temp0][1] > 0)
                 draw_long_note(temp0, note_y, note_types[temp0][0]);
+            if (note_types[temp0][1] & 0b00000100)
+                continue;
             if (note_types[temp0][0] == 0)
             {
                 // printf("LEFT KEY!");
@@ -438,33 +502,33 @@ int main(void)
             }
         }
         C3D_FrameEnd(0);
-        if (thread_ms_req_0)
+        if (music_hit_req_0 == 1)
         {
             note_splash[0] = false;
             note_splash_frame[0][0] = 0;
             note_splash_frame[0][1] = 0;
-            thread_ms_req_0 = 0;
+            music_hit_req_0 = 0;
         }
-        if (thread_ms_req_1)
+        if (music_hit_req_1 == 1)
         {
             note_splash[1] = false;
             note_splash_frame[1][0] = 0;
             note_splash_frame[1][1] = 0;
-            thread_ms_req_1 = 0;
+            music_hit_req_1 = 0;
         }
-        if (thread_ms_req_2)
+        if (music_hit_req_2 == 1)
         {
             note_splash[2] = false;
             note_splash_frame[2][0] = 0;
             note_splash_frame[2][1] = 0;
-            thread_ms_req_2 = 0;
+            music_hit_req_2 = 0;
         }
-        if (thread_ms_req_3)
+        if (music_hit_req_3 == 1)
         {
             note_splash[3] = false;
             note_splash_frame[3][0] = 0;
             note_splash_frame[3][1] = 0;
-            thread_ms_req_3 = 0;
+            music_hit_req_3 = 0;
         }
         if (keyUp & KEY_LEFT)
         {
@@ -613,6 +677,7 @@ bool load_song(char *restrict song_path)
         raw_float[2] = fgetc(fh);
         raw_float[3] = fgetc(fh);
         memcpy(&notes[temp0][1], raw_float, sizeof(notes[temp0][1]));
+        notes[temp0][2] = 0;
         note_types[temp0][0] = fgetc(fh);
         note_types[temp0][1] = 0;
     }
