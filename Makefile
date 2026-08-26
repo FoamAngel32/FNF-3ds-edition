@@ -39,9 +39,9 @@ INCLUDES	:=	include
 GRAPHICS	:=	res/gfx
 ROMFS		:=	romfs
 GFXBUILD	:=	$(ROMFS)/gfx
-APP_TITLE         := DELTARUNE
-APP_DESCRIPTION   := Orignal By Toby Fox 2018-2025
-APP_AUTHOR        := FoamAngel32/TobyFox
+APP_TITLE         := Friday Night Funkin
+APP_DESCRIPTION   := Native FNF 3ds port
+APP_AUTHOR        := FoamAngel32 Orginal by ninjamufin99
 #---------------------------------------------------------------------------------
 # options for code generation
 #---------------------------------------------------------------------------------
