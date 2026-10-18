@@ -7,10 +7,11 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <math.h>
-#include <string.h>
 #include <sys/stat.h>
 #include <malloc.h>
 #include <string.h>
+#include "note.h"
+typedef uint64_t u64; ///< 64-bit unsigned integer
 #define NOTE_WINDOW 150
 #define JUDGMENT_LINE_Y (240 - 40)
 #define STRUMLINE_START_X (60)
@@ -83,8 +84,9 @@ C2D_SpriteSheet sprite_sheets[4];
 // static C2D_TextBuf printer_text_buf;
 // static C2D_Text printer_text;
 C2D_Image imgs_note[30];
-float notes[1024][3];
-char note_types[1024][2];
+Note* notes2 = NULL; 
+// float notes[1024][2];
+// char note_types[1024][2];
 float scrollSpeed;
 u32 note_count;
 u16 freeplay_song_rating;
@@ -102,7 +104,6 @@ u8 music_hit_req_2;
 u8 music_hit_req_3;
 bool note_splash[4];
 bool is_new_3ds;
-bool count_start;
 u8 note_splash_frame[4][2];
 // void load_song_meta_data(char *restrict song_path);
 bool load_song(char *restrict song_path);
@@ -112,27 +113,25 @@ bool release_area(int x, int y, int width, int height);
 void draw_long_note(int id, float note_y, u8 a);
 int main(void)
 {
-    count_start = false;
-    ptmSysmInit();
-    PTMSYSM_CheckNew3DS(&is_new_3ds);
-    ptmSysmExit();
+    aptInit();
     hidInit();
     gfxInitDefault();
     romfsInit();
     ndspInit();
-    ndspSetOutputMode(NDSP_OUTPUT_STEREO);
-    // consoleInit(GFX_TOP, NULL);
-    create_audio_thread();
-    C3D_Init(C3D_DEFAULT_CMDBUF_SIZE);
-    C2D_Init(C2D_DEFAULT_MAX_OBJECTS);
+    ndspSetOutputMode(NDSP_OUTPUT_MONO);
 // #define FORCE_SLOW_MODE
 #ifndef FORCE_SLOW_MODE
+    APT_CheckNew3DS(&is_new_3ds);
     if (is_new_3ds)
     {
         // PTMSYSM_ConfigureNew3DSCPU(0b11);
         osSetSpeedupEnable(true);
     }
 #endif
+    // consoleInit(GFX_TOP, NULL);
+    create_audio_thread();
+    C3D_Init(C3D_DEFAULT_CMDBUF_SIZE);
+    C2D_Init(C2D_DEFAULT_MAX_OBJECTS);
     C2D_Prepare();
     // staticTextBuf = C2D_TextBufNew(256);
     // printer_text_buf = C2D_TextBufNew(256);
@@ -183,6 +182,7 @@ int main(void)
     imgs_note[29] = C2D_SpriteSheetGetImage(sprite_sheets[2], 11);
 
     consoleInit(GFX_TOP, NULL);
+    printf("\n%d", is_new_3ds);
     // touched = false;
     load_vorbis("romfs:/music/songs/tutorial.ogg", 0);
     // load_song_meta_data("romfs:/data/tutorial/metadata.bin");
@@ -191,6 +191,7 @@ int main(void)
     // printf("%d ", R_SUCCEEDED(result));
     // printf("%d\n", is_new_3ds);
     play_vorbis(0, false, 0, 1.0);
+    printf("audio played");
     u64 last_tick = svcGetSystemTick();
     const double ticks_per_ms = SYSCLOCK_ARM11 / 1000.0;
     note_hitted = 0;
@@ -282,7 +283,7 @@ int main(void)
         {
             if (music_hit_req_2 == 255)
             {
-                note_splash_frame[0][2] = 0;
+                note_splash_frame[2][1] = 0;
                 music_hit_req_2 = 1;
                 note_splash[2] = true;
             }
@@ -340,97 +341,93 @@ int main(void)
             C2D_DrawImageAtRotated(imgs_note[1], STRUMLINE_START_X + 3 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, (-90 * M_PI / 180.0f), NULL, 1.0f, 1.0f);
         for (temp0 = 0; temp0 < note_count; ++temp0)
         {
-            float note_y = JUDGMENT_LINE_Y - (notes[temp0][0] - time_ms) * scrollSpeed;
-            float note_end_y = JUDGMENT_LINE_Y - ((notes[temp0][0] + notes[temp0][1]) - time_ms) * scrollSpeed;
+            float note_y = JUDGMENT_LINE_Y - (notes2[temp0].start - time_ms) * scrollSpeed;
+            float note_end_y = JUDGMENT_LINE_Y - ((notes2[temp0].start + notes2[temp0].length) - time_ms) * scrollSpeed;
             if ((note_y < -50) || (note_end_y > 300))
                 continue;
 
-            if (((time_ms < (notes[temp0][0] + NOTE_WINDOW))) && (time_ms > (notes[temp0][0] - NOTE_WINDOW)))
+            if (((time_ms < (notes2[temp0].start + NOTE_WINDOW))) && (time_ms > (notes2[temp0].start - NOTE_WINDOW)))
             {
-                if ((note_types[temp0][1] & 0b00000001) == 0)
+                if ((notes2[temp0].flag & 0b00000001) == 0)
                 {
-                    if (note_types[temp0][0] == 0)
+                    if (notes2[temp0].type == 0)
                     {
                         if (keyDown & KEY_LEFT || touch_area(STRUMLINE_START_X + 0 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
                         {
-                            note_types[temp0][1] |= 0b1;
-                            notes[temp0][2] = svcGetSystemTick();
-                            note_types[temp0][1] |= 0b00000100;
+                            notes2[temp0].flag |= 0b1;
+                            notes2[temp0].flag |= 0b00000100;
                         }
                     }
-                    else if (note_types[temp0][0] == 1)
+                    else if (notes2[temp0].type == 1)
                     {
                         if (keyDown & KEY_DOWN || touch_area(STRUMLINE_START_X + 1 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
                         {
-                            note_types[temp0][1] |= 0b1;
-                            notes[temp0][2] = svcGetSystemTick();
-                            note_types[temp0][1] |= 0b00000100;
+                            notes2[temp0].flag |= 0b1;
+                            notes2[temp0].flag |= 0b00000100;
                         }
                     }
-                    else if (note_types[temp0][0] == 2)
+                    else if (notes2[temp0].type == 2)
                     {
                         if (keyDown & KEY_UP || touch_area(STRUMLINE_START_X + 2 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
                         {
-                            note_types[temp0][1] |= 0b1;
-                            notes[temp0][2] = svcGetSystemTick();
-                            note_types[temp0][1] |= 0b00000100;
+                            notes2[temp0].flag |= 0b1;
+                            notes2[temp0].flag |= 0b00000100;
                         }
                     }
-                    else if (note_types[temp0][0] == 3)
+                    else if (notes2[temp0].type == 3)
                     {
                         if (keyDown & KEY_RIGHT || touch_area(STRUMLINE_START_X + 3 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
                         {
-                            note_types[temp0][1] |= 0b1;
-                            notes[temp0][2] = svcGetSystemTick();
-                            note_types[temp0][1] |= 0b00000100;
+                            notes2[temp0].flag |= 0b1;
+                            notes2[temp0].flag |= 0b00000100;
                         }
                     }
                 }
-                if (((note_types[temp0][1] & 0b00000010) == 0) && (note_types[temp0][1] & 0b00000001) != 0)
+                if (((notes2[temp0].flag & 0b00000010) == 0) && (notes2[temp0].flag & 0b00000001) != 0)
                 {
-                    if (note_types[temp0][0] == 0)
+                    if (notes2[temp0].type == 0)
                     {
                         if (keyHeld & KEY_LEFT || held_area(STRUMLINE_START_X + 0 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
                         {
                             if (music_hit_req_0)
                             {
                                 note_splash[0] = true;
-                                if (notes[temp0][1] > 0)
+                                if (notes2[temp0].length > 0)
                                 {
                                     music_hit_req_0 = 255;
-                                    notes[temp0][1] -= elapsed;
-                                    notes[temp0][0] += elapsed;
+                                    notes2[temp0].length -= elapsed;
+                                    notes2[temp0].start += elapsed;
                                 }
                                 else
                                 {
                                     music_hit_req_0 = 0;
-                                    note_types[temp0][1] |= 0b10;
+                                    notes2[temp0].flag |= 0b10;
                                 }
                             }
                         }
                     }
-                    else if (note_types[temp0][0] == 1)
+                    else if (notes2[temp0].type == 1)
                     {
                         if (keyHeld & KEY_DOWN || held_area(STRUMLINE_START_X + 1 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
                         {
                             if (music_hit_req_1)
                             {
                                 note_splash[1] = true;
-                                if (notes[temp0][1] > 0)
+                                if (notes2[temp0].length > 0)
                                 {
                                     music_hit_req_1 = 255;
-                                    notes[temp0][1] -= elapsed;
-                                    notes[temp0][0] += elapsed;
+                                    notes2[temp0].length -= elapsed;
+                                    notes2[temp0].start += elapsed;
                                 }
                                 else
                                 {
                                     music_hit_req_1 = 0;
-                                    note_types[temp0][1] |= 0b10;
+                                    notes2[temp0].flag |= 0b10;
                                 }
                             }
                         }
                     }
-                    else if (note_types[temp0][0] == 2)
+                    else if (notes2[temp0].type == 2)
                     {
                         // printf("UP KEY!");
                         if (keyHeld & KEY_UP || held_area(STRUMLINE_START_X + 2 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
@@ -438,37 +435,37 @@ int main(void)
                             if (music_hit_req_2)
                             {
                                 note_splash[2] = true;
-                                if (notes[temp0][1] > 0)
+                                if (notes2[temp0].length > 0)
                                 {
                                     music_hit_req_2 = 255;
-                                    notes[temp0][1] -= elapsed;
-                                    notes[temp0][0] += elapsed;
+                                    notes2[temp0].length -= elapsed;
+                                    notes2[temp0].start += elapsed;
                                 }
                                 else
                                 {
                                     music_hit_req_2 = 0;
-                                    note_types[temp0][1] |= 0b10;
+                                    notes2[temp0].flag |= 0b10;
                                 }
                             }
                         }
                     }
-                    else if (note_types[temp0][0] == 3)
+                    else if (notes2[temp0].type == 3)
                     {
                         if (keyHeld & KEY_RIGHT || held_area(STRUMLINE_START_X + 3 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
                         {
                             if (music_hit_req_3)
                             {
                                 note_splash[3] = true;
-                                if (notes[temp0][1] > 0)
+                                if (notes2[temp0].length > 0)
                                 {
                                     music_hit_req_3 = 255;
-                                    notes[temp0][1] -= elapsed;
-                                    notes[temp0][0] += elapsed;
+                                    notes2[temp0].length -= elapsed;
+                                    notes2[temp0].start += elapsed;
                                 }
                                 else
                                 {
                                     music_hit_req_3 = 0;
-                                    note_types[temp0][1] |= 0b10;
+                                    notes2[temp0].flag |= 0b10;
                                 }
                             }
                         }
@@ -476,26 +473,26 @@ int main(void)
                 }
             }
 
-            if (notes[temp0][1] > 0)
-                draw_long_note(temp0, note_y, note_types[temp0][0]);
-            if (note_types[temp0][1] & 0b00000100)
+            if (notes2[temp0].length > 0)
+                draw_long_note(temp0, note_y, notes2[temp0].type);
+            if (notes2[temp0].flag & 0b00000100)
                 continue;
-            if (note_types[temp0][0] == 0)
+            if (notes2[temp0].type == 0)
             {
                 // printf("LEFT KEY!");
                 C2D_DrawImageAt(imgs_note[6], STRUMLINE_START_X + 0 * STRUMLINE_INTERVAL - 32, note_y - 32, 0, NULL, 1.0f, 1.0f);
             }
-            else if (note_types[temp0][0] == 1)
+            else if (notes2[temp0].type == 1)
             {
                 // printf("DOWN KEY!");
                 C2D_DrawImageAt(imgs_note[7], STRUMLINE_START_X + 1 * STRUMLINE_INTERVAL - 32, note_y - 32, 0, NULL, 1.0f, 1.0f);
             }
-            else if (note_types[temp0][0] == 2)
+            else if (notes2[temp0].type == 2)
             {
                 // printf("UP KEY!");
                 C2D_DrawImageAt(imgs_note[8], STRUMLINE_START_X + 2 * STRUMLINE_INTERVAL - 32, note_y - 32, 0, NULL, 1.0f, 1.0f);
             }
-            else if (note_types[temp0][0] == 3)
+            else if (notes2[temp0].type == 3)
             {
                 // printf("RIGHT KEY!");
                 C2D_DrawImageAt(imgs_note[9], STRUMLINE_START_X + 3 * STRUMLINE_INTERVAL - 32, note_y - 32, 0, NULL, 1.0f, 1.0f);
@@ -562,6 +559,8 @@ int main(void)
         gspWaitForVBlank();
     }
     counter_end = true;
+    free(notes2);
+    aptExit();
     hidExit();
     audioExit();
     ndspExit();
@@ -573,7 +572,7 @@ int main(void)
 }
 void draw_long_note(int id, float note_y, u8 a)
 {
-    float note_end_y = JUDGMENT_LINE_Y - ((notes[id][0] + notes[id][1]) - time_ms) * scrollSpeed;
+    float note_end_y = JUDGMENT_LINE_Y - ((notes2[id].start + notes2[id].length) - time_ms) * scrollSpeed;
     // note_end_y += 20;
     float long_note_x = (STRUMLINE_START_X + a * STRUMLINE_INTERVAL - 23) + 16;
     float current_y = note_y - 10;
@@ -643,10 +642,10 @@ bool release_area(int x, int y, int width, int height)
 // }
 bool load_song(char *restrict song_path)
 {
+    u8 buffer[9]; 
     unsigned char raw_float[4];
     int temp0;
     char magic[17];
-    unsigned char b0, b1, b2, b3;
     FILE *fh = fopen(song_path, "rb");
     magic[16] = 0;
     fread(magic, 1, 16, fh);
@@ -654,32 +653,26 @@ bool load_song(char *restrict song_path)
     {
         return false;
     }
-    raw_float[0] = fgetc(fh);
-    raw_float[1] = fgetc(fh);
-    raw_float[2] = fgetc(fh);
-    raw_float[3] = fgetc(fh);
+    fread(raw_float, 1, 4, fh);
     memcpy(&scrollSpeed, raw_float, sizeof(scrollSpeed));
-    scrollSpeed /= 10;
-    b0 = fgetc(fh);
-    b1 = fgetc(fh);
-    b2 = fgetc(fh);
-    b3 = fgetc(fh);
-    note_count = b0 | (b1 << 8) | (b2 << 16) | (b3 << 24);
+    scrollSpeed /= 5;
+    fread(buffer, 1, 4, fh);
+    note_count = buffer[0] | (buffer[1] << 8) | (buffer[2] << 16) | (buffer[3] << 24);
+    notes2 = (Note*)malloc(note_count * sizeof(Note));
+    if (notes2 == NULL) {
+        printf("Not enough RAM!");
+        fclose(fh);
+        while(aptMainLoop()){
+            gspWaitForVBlank();
+        }
+    }
     for (temp0 = 0; temp0 < note_count; ++temp0)
     {
-        raw_float[0] = fgetc(fh);
-        raw_float[1] = fgetc(fh);
-        raw_float[2] = fgetc(fh);
-        raw_float[3] = fgetc(fh);
-        memcpy(&notes[temp0][0], raw_float, sizeof(notes[temp0][0]));
-        raw_float[0] = fgetc(fh);
-        raw_float[1] = fgetc(fh);
-        raw_float[2] = fgetc(fh);
-        raw_float[3] = fgetc(fh);
-        memcpy(&notes[temp0][1], raw_float, sizeof(notes[temp0][1]));
-        notes[temp0][2] = 0;
-        note_types[temp0][0] = fgetc(fh);
-        note_types[temp0][1] = 0;
+        fread(buffer, 1, 9, fh); 
+        memcpy(&notes2[temp0].start, &buffer[0], sizeof(float));
+        memcpy(&notes2[temp0].length, &buffer[4], sizeof(float));
+        notes2[temp0].type = buffer[8];
+        notes2[temp0].flag = 0;
     }
     fclose(fh);
     return true;
@@ -694,7 +687,7 @@ bool audioInit(OggVorbis *vorbisFile_, int chn, int id, float pitch)
     vorbisFile_->pitch = pitch;
     // Setup NDSP
     ndspChnReset(chn);
-    ndspChnSetInterp(chn, NDSP_INTERP_NONE);
+    ndspChnSetInterp(chn, NDSP_INTERP_LINEAR);
     ndspChnSetRate(chn, 32000 * pitch);
     ndspChnSetFormat(chn, vi->channels == 1
                               ? NDSP_FORMAT_MONO_PCM16
@@ -782,9 +775,8 @@ void stop_vorbis(int id)
 void load_vorbis(char *restrict song_path, int id)
 {
     stop_vorbis(id);
-    ov_raw_seek(&vorbis_file[id], 0);
-    ov_clear(&vorbis_file[id]);
     FILE *fh = fopen(song_path, "rb");
+    ov_clear(&vorbis_file[id]);
     ov_open(fh, &vorbis_file[id], NULL, 0);
 }
 void audioCallback_ogg(void *const nul_)
@@ -869,20 +861,13 @@ void create_audio_thread(void)
 
     // Start the thread, passing the address of our vorbisFile as an argument.
     ndspSetCallback(audioCallback_ogg, NULL);
-    for (temp1 = 0; temp1 <= 23; ++temp1)
+    for (temp0_audio = 0; temp0_audio <= 23; ++temp0_audio)
     {
-        oggs[temp1].done = 1;
+        oggs[temp0_audio].done = 1;
     }
-    if (is_new_3ds)
-    {
-        threadId_audio = threadCreate(audioThread, NULL,
-                                      THREAD_STACK_SZ, priority,
-                                      2, true);
-    }
-    else
-        threadId_audio = threadCreate(audioThread, NULL,
-                                      THREAD_STACK_SZ, priority,
-                                      THREAD_AFFINITY, true);
+    threadId_audio = threadCreate(audioThread, NULL,
+                                    THREAD_STACK_SZ, priority,
+                                    THREAD_AFFINITY, true);
 }
 // void thread_ms_counter(void *const unused)
 // {
