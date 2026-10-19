@@ -1,5 +1,3 @@
-#include <tremor/ivorbisfile.h>
-#include <tremor/ivorbiscodec.h>
 #include <citro2d.h>
 #include <citro3d.h>
 #include <3ds.h>
@@ -11,6 +9,7 @@
 #include <malloc.h>
 #include <string.h>
 #include "note.h"
+#include "vorbis.h"
 typedef uint64_t u64; ///< 64-bit unsigned integer
 #define NOTE_WINDOW 150
 #define JUDGMENT_LINE_Y (240 - 40)
@@ -25,55 +24,7 @@ const char stage_header[] = "EMBEDDEDFNFSTAGE";
 // 0 main song
 #define VORBIS_ID_SONG 0
 // ---- DEFINITIONS ----
-#define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
-OggVorbis_File vorbis_file[128];
-u8 temp0_audio;
-Thread threadId_audio;
-Thread threadId_ms_counter;
-typedef struct
-{
-    int vorbis_id;
-    int chn;
-    signed char done;
-    ndspWaveBuf s_waveBufs[3];
-    int16_t *s_audioBuffer;
-    float pitch;
-} OggVorbis;
-OggVorbis oggs[23];
-static const int THREAD_AFFINITY = -1;        // Execute thread on any core
-static const int THREAD_STACK_SZ = 32 * 1024; // 32kB stack for audio thread
 
-// ---- END DEFINITIONS ----
-
-LightEvent s_event;
-LightEvent s_event2;
-volatile bool s_quit = false; // Quit flag
-
-// Copied from audio example with a slight bit of change
-
-// Pause until user presses a button
-
-// ---- END HELPER FUNCTIONS ----
-
-// Audio initialisation code
-// This sets up NDSP and our primary audio buffer
-bool audioInit(OggVorbis *vorbisFile_, int chn, int id, float pitch);
-// Audio de-initialisation code
-// Stops playback and frees the primary audio buffer
-void audioExit(void);
-bool fillBuffer(OggVorbis_File *vorbisFile_, ndspWaveBuf *waveBuf_, int chn);
-// NDSP audio frame callback
-// This signals the audioThread to decode more things
-// once NDSP has played a sound frame, meaning that there should be
-// one or more available waveBufs to fill with more data.
-void audioCallback_ogg(void *const nul_);
-// Audio thread
-// This handles calling the decoder function to fill NDSP buffers as necessary
-void audioThread(void *const unused);
-void stop_vorbis(int id);
-void load_vorbis(char *restrict song_path, int chn);
-void play_vorbis(int chn, bool loop, int id, float pitch);
-void create_audio_thread(void);
 C3D_RenderTarget *top_target, *bottom_target;
 // C3D_RenderTarget *bottom_target;
 // C2D_SpriteSheet temp_sheet;
@@ -84,10 +35,11 @@ C2D_SpriteSheet sprite_sheets[4];
 // static C2D_TextBuf printer_text_buf;
 // static C2D_Text printer_text;
 C2D_Image imgs_note[30];
-Note* notes2 = NULL; 
+Note *notes2 = NULL;
 // float notes[1024][2];
 // char note_types[1024][2];
 float scrollSpeed;
+unsigned char game_paused;
 u32 note_count;
 u16 freeplay_song_rating;
 u16 note_hitted;
@@ -128,6 +80,11 @@ int main(void)
         osSetSpeedupEnable(true);
     }
 #endif
+    int temp;
+    for(temp = 0;temp < 23;++temp)
+    {
+        oggs[temp].s_audioBuffer = NULL;
+    }
     // consoleInit(GFX_TOP, NULL);
     create_audio_thread();
     C3D_Init(C3D_DEFAULT_CMDBUF_SIZE);
@@ -182,16 +139,14 @@ int main(void)
     imgs_note[29] = C2D_SpriteSheetGetImage(sprite_sheets[2], 11);
 
     consoleInit(GFX_TOP, NULL);
-    printf("\n%d", is_new_3ds);
     // touched = false;
-    load_vorbis("romfs:/music/songs/tutorial.ogg", 0);
+    load_vorbis("romfs:/music/songs/darnell.ogg", 0);
     // load_song_meta_data("romfs:/data/tutorial/metadata.bin");
-    load_song("romfs:/data/songs/normal/tutorial/chart.bin");
+    load_song("romfs:/data/songs/hard/darnell/chart.bin");
     // printf("%f, %d, %f\n", scrollSpeed, note_count, notes[0][0]);
     // printf("%d ", R_SUCCEEDED(result));
     // printf("%d\n", is_new_3ds);
     play_vorbis(0, false, 0, 1.0);
-    printf("audio played");
     u64 last_tick = svcGetSystemTick();
     const double ticks_per_ms = SYSCLOCK_ARM11 / 1000.0;
     note_hitted = 0;
@@ -208,8 +163,14 @@ int main(void)
         // printf("%f", time_ms);
         if (elapsed > 0)
         {
-            time_ms += elapsed;
+            if (!game_paused)
+                time_ms += elapsed;
             last_tick = current_tick;
+        }
+        if (keyDown & KEY_START)
+        {
+            game_paused = !game_paused;
+            pause_vorbis(0, game_paused);
         }
         C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
         // C2D_SceneBegin(top_target);
@@ -341,8 +302,8 @@ int main(void)
             C2D_DrawImageAtRotated(imgs_note[1], STRUMLINE_START_X + 3 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, (-90 * M_PI / 180.0f), NULL, 1.0f, 1.0f);
         for (temp0 = 0; temp0 < note_count; ++temp0)
         {
-            float note_y = JUDGMENT_LINE_Y - (notes2[temp0].start - time_ms) * scrollSpeed;
-            float note_end_y = JUDGMENT_LINE_Y - ((notes2[temp0].start + notes2[temp0].length) - time_ms) * scrollSpeed;
+            float note_y = JUDGMENT_LINE_Y - (notes2[temp0].start - time_ms) * scrollSpeed + 19;
+            float note_end_y = JUDGMENT_LINE_Y - ((notes2[temp0].start + notes2[temp0].length) - time_ms) * scrollSpeed + 19;
             if ((note_y < -50) || (note_end_y > 300))
                 continue;
 
@@ -573,15 +534,12 @@ int main(void)
 void draw_long_note(int id, float note_y, u8 a)
 {
     float note_end_y = JUDGMENT_LINE_Y - ((notes2[id].start + notes2[id].length) - time_ms) * scrollSpeed;
+    float scale = (note_y - note_end_y - 20) / 27.0f; 
     // note_end_y += 20;
     float long_note_x = (STRUMLINE_START_X + a * STRUMLINE_INTERVAL - 23) + 16;
-    float current_y = note_y - 10;
-    for (; current_y > note_end_y; current_y -= 20)
-    {
-        C2D_DrawImageAt(imgs_note[22 + a * 2], long_note_x, current_y, 0, NULL, 1.0f, -1.0f);
-    }
+    C2D_DrawImageAt(imgs_note[22 + a * 2], long_note_x, note_end_y + 20, 0, NULL, 1.0f, scale);
     // current_y -= 20;
-    C2D_DrawImageAt(imgs_note[23 + a * 2], long_note_x, current_y, 0, NULL, 1.0f, -1.0f);
+    C2D_DrawImageAt(imgs_note[23 + a * 2], long_note_x, note_end_y, 0, NULL, 1.0f, -1.0f);
 }
 bool held_area(int x, int y, int width, int height)
 {
@@ -642,7 +600,12 @@ bool release_area(int x, int y, int width, int height)
 // }
 bool load_song(char *restrict song_path)
 {
-    u8 buffer[9]; 
+    if (notes2 != NULL)
+    {
+        free(notes2);
+        notes2 = NULL; // Set to NULL immediately to prevent double-free crashes
+    }
+    u8 buffer[9];
     unsigned char raw_float[4];
     int temp0;
     char magic[17];
@@ -658,17 +621,15 @@ bool load_song(char *restrict song_path)
     scrollSpeed /= 5;
     fread(buffer, 1, 4, fh);
     note_count = buffer[0] | (buffer[1] << 8) | (buffer[2] << 16) | (buffer[3] << 24);
-    notes2 = (Note*)malloc(note_count * sizeof(Note));
-    if (notes2 == NULL) {
-        printf("Not enough RAM!");
+    notes2 = (Note *)malloc(note_count * sizeof(Note));
+    if (notes2 == NULL)
+    {
         fclose(fh);
-        while(aptMainLoop()){
-            gspWaitForVBlank();
-        }
+        return false;
     }
     for (temp0 = 0; temp0 < note_count; ++temp0)
     {
-        fread(buffer, 1, 9, fh); 
+        fread(buffer, 1, 9, fh);
         memcpy(&notes2[temp0].start, &buffer[0], sizeof(float));
         memcpy(&notes2[temp0].length, &buffer[4], sizeof(float));
         notes2[temp0].type = buffer[8];
@@ -677,198 +638,7 @@ bool load_song(char *restrict song_path)
     fclose(fh);
     return true;
 }
-bool audioInit(OggVorbis *vorbisFile_, int chn, int id, float pitch)
-{
-    ov_pcm_seek(&vorbis_file[id], 0);
-    vorbis_info *vi = ov_info(&vorbis_file[vorbisFile_->vorbis_id], -1);
-    vorbisFile_->done = 0;
-    vorbisFile_->chn = chn;
-    vorbisFile_->vorbis_id = id;
-    vorbisFile_->pitch = pitch;
-    // Setup NDSP
-    ndspChnReset(chn);
-    ndspChnSetInterp(chn, NDSP_INTERP_LINEAR);
-    ndspChnSetRate(chn, 32000 * pitch);
-    ndspChnSetFormat(chn, vi->channels == 1
-                              ? NDSP_FORMAT_MONO_PCM16
-                              : NDSP_FORMAT_STEREO_PCM16);
 
-    // Allocate audio buffer
-    // 120ms buffer
-    const size_t SAMPLES_PER_BUF = vi->rate * 120 / 1000;
-    // mono (1) or stereo (2)
-    const size_t CHANNELS_PER_SAMPLE = vi->channels;
-    // s16 buffer
-    const size_t WAVEBUF_SIZE = SAMPLES_PER_BUF * CHANNELS_PER_SAMPLE * sizeof(s16);
-    const size_t bufferSize = WAVEBUF_SIZE * ARRAY_SIZE(vorbisFile_->s_waveBufs);
-    vorbisFile_->s_audioBuffer = (int16_t *)linearAlloc(bufferSize);
-    // Setup waveBufs for NDSP
-    memset(&vorbisFile_->s_waveBufs, 0, sizeof(vorbisFile_->s_waveBufs));
-    int16_t *buffer = vorbisFile_->s_audioBuffer;
-
-    for (size_t i = 0; i < ARRAY_SIZE(vorbisFile_->s_waveBufs); ++i)
-    {
-        vorbisFile_->s_waveBufs[i].data_vaddr = buffer;
-        vorbisFile_->s_waveBufs[i].nsamples = WAVEBUF_SIZE / sizeof(buffer[0]);
-        vorbisFile_->s_waveBufs[i].status = NDSP_WBUF_DONE;
-
-        buffer += WAVEBUF_SIZE / sizeof(buffer[0]);
-    }
-
-    return true;
-}
-void audioExit(void)
-{
-    for (temp0_audio = 0; temp0_audio <= 23; ++temp0_audio)
-    {
-        stop_vorbis(temp0_audio);
-        ndspChnReset(temp0_audio);
-    }
-    for (temp0_audio = 0; temp0_audio < ARRAY_SIZE(oggs); ++temp0_audio)
-    {
-        ov_clear(&vorbis_file[oggs[temp0_audio].vorbis_id]);
-        linearFree(oggs[temp0_audio].s_audioBuffer);
-    }
-}
-bool fillBuffer(OggVorbis_File *vorbisFile_, ndspWaveBuf *waveBuf_, int chn)
-{
-    int totalBytes = 0;
-    bool eof = false;
-
-    // printf("FIlled buffer\n");
-    while (totalBytes < waveBuf_->nsamples * sizeof(s16))
-    {
-        int16_t *buffer = waveBuf_->data_pcm16 + (totalBytes / sizeof(s16));
-        size_t bufferSize = waveBuf_->nsamples * sizeof(s16) - totalBytes;
-
-        int bytesRead = ov_read(vorbisFile_, (char *)buffer, bufferSize, NULL);
-        if (bytesRead == 0)
-        { // EOF
-            eof = true;
-            break;
-        }
-        if (bytesRead < 0)
-        {
-            eof = true;
-            break;
-        }
-
-        totalBytes += bytesRead;
-    }
-
-    if (totalBytes == 0 && eof)
-    {
-        // printf("FIll buffer eof\n");
-        // ov_pcm_seek();
-        return false;
-    }
-
-    waveBuf_->nsamples = totalBytes / sizeof(s16);
-    ndspChnWaveBufAdd(chn, waveBuf_);
-    DSP_FlushDataCache(waveBuf_->data_pcm16, totalBytes);
-    return true;
-}
-void stop_vorbis(int id)
-{
-    oggs[id].done = 1;
-}
-void load_vorbis(char *restrict song_path, int id)
-{
-    stop_vorbis(id);
-    FILE *fh = fopen(song_path, "rb");
-    ov_clear(&vorbis_file[id]);
-    ov_open(fh, &vorbis_file[id], NULL, 0);
-}
-void audioCallback_ogg(void *const nul_)
-{
-    // printf("Audio Callback!\n");
-    (void)nul_; // Unused
-    // ov_raw_seek(&vorbis_file[0], 0);
-    if (s_quit)
-    { // Quit flag
-        return;
-    }
-
-    LightEvent_Signal(&s_event);
-}
-void audioThread(void *const unused)
-{
-    while (!s_quit)
-    { // Whilst the quit flag is unset,
-      // search our waveBufs and fill any that aren't currently
-      // queued for playback (i.e, those that are 'done')
-        for (temp0_audio = 0; temp0_audio < ARRAY_SIZE(oggs); ++temp0_audio)
-        {
-            if (oggs[temp0_audio].done == 1)
-                continue;
-            // printf("doing for channel %d               \n", temp0_audio);
-            for (size_t i = 0; i < ARRAY_SIZE(oggs[temp0_audio].s_waveBufs); ++i)
-            {
-                // printf("%d ", oggs[temp0_audio].s_waveBufs[i].status);
-                if (oggs[temp0_audio].s_waveBufs[i].status != NDSP_WBUF_DONE)
-                    continue;
-                else if (oggs[temp0_audio].s_waveBufs[i].status == NDSP_WBUF_DONE)
-                {
-                    if (!fillBuffer(&vorbis_file[oggs[temp0_audio].vorbis_id], &oggs[temp0_audio].s_waveBufs[i], oggs[temp0_audio].chn))
-                    { // Playback complete
-                        // printf("");
-                        if (oggs[temp0_audio].done == -1)
-                        {
-                            play_vorbis(temp0_audio, true, oggs[temp0_audio].vorbis_id, oggs[temp0_audio].pitch);
-                            // audioInit(&oggs[temp0_audio], oggs[temp0_audio].chn, oggs[temp0_audio].vorbis_id, oggs[temp0_audio].pitch);
-                        }
-                        else if (oggs[temp0_audio].done == 0)
-                            oggs[temp0_audio].done = 1;
-                        break;
-                    }
-                }
-                // else if(oggs[temp0_audio].s_waveBufs[i].status == NDSP_WBUF_DONE){
-                //     memset(&oggs[temp0_audio].s_waveBufs[i], 0, sizeof(oggs[temp0_audio].s_waveBufs[i]));
-                // }
-            }
-            // printf("\n");
-        }
-        // Wait for a signal that we're needed again before continuing,
-        // so that we can yield to other things that want to run
-        // (Note that the 3DS uses cooperative threading)
-        LightEvent_Wait(&s_event);
-    }
-}
-void play_vorbis(int chn, bool loop, int id, float pitch)
-{
-    // Attempt audioInit
-    // if (audioInit(&oggs[chn], chn, id, pitch))
-    audioInit(&oggs[chn], chn, id, pitch);
-    if (loop)
-        oggs[chn].done = -1;
-    else
-        oggs[chn].done = 0;
-    // Set the ndsp sound frame callback which signals our audioThread
-}
-void create_audio_thread(void)
-{
-    LightEvent_Init(&s_event, RESET_ONESHOT);
-    // Spawn audio thread
-
-    // Set the thread priority to the main thread's priority ...
-    int32_t priority = 0x30;
-    svcGetThreadPriority(&priority, CUR_THREAD_HANDLE);
-    // ... then subtract 1, as lower number => higher actual priority ...
-    priority -= 2;
-    // ... finally, clamp it between 0x18 and 0x3F to guarantee that it's valid.
-    priority = priority < 0x18 ? 0x18 : priority;
-    priority = priority > 0x3F ? 0x3F : priority;
-
-    // Start the thread, passing the address of our vorbisFile as an argument.
-    ndspSetCallback(audioCallback_ogg, NULL);
-    for (temp0_audio = 0; temp0_audio <= 23; ++temp0_audio)
-    {
-        oggs[temp0_audio].done = 1;
-    }
-    threadId_audio = threadCreate(audioThread, NULL,
-                                    THREAD_STACK_SZ, priority,
-                                    THREAD_AFFINITY, true);
-}
 // void thread_ms_counter(void *const unused)
 // {
 
