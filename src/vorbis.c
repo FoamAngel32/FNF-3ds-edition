@@ -1,6 +1,8 @@
 #ifndef VORBIS_C
 #define VORBIS_C
 #include "vorbis.h"
+static const int THREAD_AFFINITY = -1;        // Execute thread on any core
+static const int THREAD_STACK_SZ = 32 * 1024; // 32kB stack for audio thread
 OggVorbis_File vorbis_file[128];
 u8 temp0_audio;
 Thread threadId_audio;
@@ -8,6 +10,14 @@ Thread threadId_ms_counter;
 OggVorbis oggs[23];
 LightEvent s_event;
 volatile bool s_quit = false; // Quit flag
+void vorbis_init(void)
+{
+    int temp;
+    for(temp = 0;temp < 23;++temp)
+    {
+        oggs[temp].s_audioBuffer = NULL;
+    }
+}
 bool audioInit(OggVorbis *vorbisFile_, int chn, int id, float pitch)
 {
     // ov_pcm_seek(&vorbis_file[id], 0);

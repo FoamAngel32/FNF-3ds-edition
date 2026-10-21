@@ -5,10 +5,6 @@
 #include <3ds.h>
 #include <string.h>
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
-extern OggVorbis_File vorbis_file[128];
-extern u8 temp0_audio;
-extern Thread threadId_audio;
-extern Thread threadId_ms_counter;
 typedef struct
 {
     int vorbis_id;
@@ -19,15 +15,6 @@ typedef struct
     int16_t *s_audioBuffer;
     float pitch;
 } OggVorbis;
-extern OggVorbis oggs[23];
-static const int THREAD_AFFINITY = -1;        // Execute thread on any core
-static const int THREAD_STACK_SZ = 32 * 1024; // 32kB stack for audio thread
-
-// ---- END DEFINITIONS ----
-
-extern LightEvent s_event;
-extern volatile bool s_quit; // Quit flag
-
 // Copied from audio example with a slight bit of change
 
 // Pause until user presses a button
@@ -36,6 +23,7 @@ extern volatile bool s_quit; // Quit flag
 
 // Audio initialisation code
 // This sets up NDSP and our primary audio buffer
+void vorbis_init(void);
 bool audioInit(OggVorbis *vorbisFile_, int chn, int id, float pitch);
 // Audio de-initialisation code
 // Stops playback and frees the primary audio buffer
