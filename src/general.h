@@ -12,6 +12,7 @@ typedef struct{
     char type;
     char flag;
 } Note;
+
 typedef void (*StateFunction)(void);
 
 #define NOTE_WINDOW 120

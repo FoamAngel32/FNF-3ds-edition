@@ -23,7 +23,6 @@ typedef struct
 
 // Audio initialisation code
 // This sets up NDSP and our primary audio buffer
-void vorbis_init(void);
 bool audioInit(OggVorbis *vorbisFile_, int chn, int id, float pitch);
 // Audio de-initialisation code
 // Stops playback and frees the primary audio buffer
@@ -38,7 +37,7 @@ void audioCallback_ogg(void *const nul_);
 // This handles calling the decoder function to fill NDSP buffers as necessary
 void audioThread(void *const unused);
 void stop_vorbis(int id);
-void load_vorbis(char *restrict song_path, int chn);
+bool load_vorbis(char *restrict song_path, int chn);
 void pause_vorbis(int id, bool pause);
 void play_vorbis(int chn, bool loop, int id, float pitch);
 void create_audio_thread(void);

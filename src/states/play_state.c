@@ -2,6 +2,7 @@
 #include "../general.h"
 #include "../utils.h"
 #include "../vorbis.h"
+#include "../animation.h"
 const double ticks_per_ms = SYSCLOCK_ARM11 / 1000.0;
 unsigned char game_paused;
 double time_ms;
@@ -10,9 +11,9 @@ u8 music_hit_req_1;
 u8 music_hit_req_2;
 u8 music_hit_req_3;
 u64 last_tick;
-u8 note_splash_frame[4][2];
 bool note_splash[4];
 C2D_Image imgs_note[26];
+Animation anim_note_splash[4];
 void draw_long_note(int id, float note_y, u8 a);
 void init_PlayState(void)
 {
@@ -57,6 +58,15 @@ void init_PlayState(void)
 
     imgs_note[24] = C2D_SpriteSheetGetImage(sprite_sheets[2], 10);
     imgs_note[25] = C2D_SpriteSheetGetImage(sprite_sheets[2], 11);
+
+    int temp;
+    for (temp = 0; temp < 4; ++temp)
+    {
+        anim_note_splash[temp].max_delay = anim_note_splash[temp].total_frame = anim_note_splash[temp].loop_point = 1;
+        anim_note_splash[temp].frame_speed = 24.0f / 60.0f;
+        anim_note_splash[temp].delay_speed = 1;
+    }
+
     play_vorbis(0, false, 0, 1.0);
     last_tick = svcGetSystemTick();
 }
@@ -86,7 +96,9 @@ void update_PlayState(void)
     {
         if (music_hit_req_0 == 255)
         {
-            note_splash_frame[0][1] = 0;
+            anim_note_splash[0].enabled = false;
+            anim_note_splash[0].frame = 0;
+            anim_note_splash[0].delay = 0;
             music_hit_req_0 = 1;
             note_splash[0] = true;
         }
@@ -96,16 +108,8 @@ void update_PlayState(void)
         }
         if (note_splash[0])
         {
-            if (note_splash_frame[0][0] < SPLASH_ANIM_SPEED)
-                ++note_splash_frame[0][0];
-            else
-            {
-                note_splash_frame[0][0] = 0;
-                ++note_splash_frame[0][1];
-                if (note_splash_frame[0][1] > 1)
-                    note_splash_frame[0][1] = 1;
-            }
-            C2D_DrawImageAtRotated(imgs_note[10 + note_splash_frame[0][1]], STRUMLINE_START_X + 0 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, 0, NULL, 1.0f, 1.0f);
+            anim_note_splash[0].enabled = true;
+            C2D_DrawImageAtRotated(imgs_note[10 + play_animation(&anim_note_splash[0])], STRUMLINE_START_X + 0 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, 0, NULL, 1.0f, 1.0f);
         }
         else
             C2D_DrawImageAtRotated(imgs_note[2], STRUMLINE_START_X + 0 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, 0, NULL, 1.0f, 1.0f);
@@ -116,7 +120,9 @@ void update_PlayState(void)
     {
         if (music_hit_req_1 == 255)
         {
-            note_splash_frame[1][1] = 0;
+            anim_note_splash[1].enabled = false;
+            anim_note_splash[1].frame = 0;
+            anim_note_splash[1].delay = 0;
             music_hit_req_1 = 1;
             note_splash[1] = true;
         }
@@ -127,16 +133,8 @@ void update_PlayState(void)
 
         if (note_splash[1])
         {
-            if (note_splash_frame[1][0] < SPLASH_ANIM_SPEED)
-                ++note_splash_frame[1][0];
-            else
-            {
-                note_splash_frame[1][0] = 0;
-                ++note_splash_frame[1][1];
-                if (note_splash_frame[1][1] > 1)
-                    note_splash_frame[1][1] = 1;
-            }
-            C2D_DrawImageAtRotated(imgs_note[12 + note_splash_frame[1][1]], STRUMLINE_START_X + 1 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, 0, NULL, 1.0f, 1.0f);
+            anim_note_splash[1].enabled = true;
+            C2D_DrawImageAtRotated(imgs_note[12 + play_animation(&anim_note_splash[1])], STRUMLINE_START_X + 1 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, 0, NULL, 1.0f, 1.0f);
         }
         else
             C2D_DrawImageAtRotated(imgs_note[3], STRUMLINE_START_X + 1 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, 0, NULL, 1.0f, 1.0f);
@@ -147,7 +145,9 @@ void update_PlayState(void)
     {
         if (music_hit_req_2 == 255)
         {
-            note_splash_frame[2][1] = 0;
+            anim_note_splash[2].enabled = false;
+            anim_note_splash[2].frame = 0;
+            anim_note_splash[2].delay = 0;
             music_hit_req_2 = 1;
             note_splash[2] = true;
         }
@@ -157,16 +157,8 @@ void update_PlayState(void)
         }
         if (note_splash[2])
         {
-            if (note_splash_frame[2][0] < SPLASH_ANIM_SPEED)
-                ++note_splash_frame[2][0];
-            else
-            {
-                note_splash_frame[2][0] = 0;
-                ++note_splash_frame[2][1];
-                if (note_splash_frame[2][1] > 1)
-                    note_splash_frame[2][1] = 1;
-            }
-            C2D_DrawImageAtRotated(imgs_note[14 + note_splash_frame[2][1]], STRUMLINE_START_X + 2 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, 0, NULL, 1.0f, 1.0f);
+            anim_note_splash[2].enabled = true;
+            C2D_DrawImageAtRotated(imgs_note[14 + play_animation(&anim_note_splash[2])], STRUMLINE_START_X + 2 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, 0, NULL, 1.0f, 1.0f);
         }
         else
             C2D_DrawImageAtRotated(imgs_note[4], STRUMLINE_START_X + 2 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, 0, NULL, 1.0f, 1.0f);
@@ -177,7 +169,9 @@ void update_PlayState(void)
     {
         if (music_hit_req_3 == 255)
         {
-            note_splash_frame[3][1] = 0;
+            anim_note_splash[3].enabled = false;
+            anim_note_splash[3].frame = 0;
+            anim_note_splash[3].delay = 0;
             music_hit_req_3 = 1;
             note_splash[3] = true;
         }
@@ -187,16 +181,8 @@ void update_PlayState(void)
         }
         if (note_splash[3])
         {
-            if (note_splash_frame[3][0] < SPLASH_ANIM_SPEED)
-                ++note_splash_frame[3][0];
-            else
-            {
-                note_splash_frame[3][0] = 0;
-                ++note_splash_frame[3][1];
-                if (note_splash_frame[3][1] > 1)
-                    note_splash_frame[3][1] = 1;
-            }
-            C2D_DrawImageAtRotated(imgs_note[16 + note_splash_frame[3][1]], STRUMLINE_START_X + 3 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, 0, NULL, 1.0f, 1.0f);
+            anim_note_splash[3].enabled = true;
+            C2D_DrawImageAtRotated(imgs_note[16 + play_animation(&anim_note_splash[3])], STRUMLINE_START_X + 3 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, 0, NULL, 1.0f, 1.0f);
         }
         else
             C2D_DrawImageAtRotated(imgs_note[5], STRUMLINE_START_X + 3 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, 0, NULL, 1.0f, 1.0f);
@@ -336,8 +322,8 @@ void update_PlayState(void)
                 }
             }
         }
-        
-        if(notes[temp0].type < 4)
+
+        if (notes[temp0].type < 4)
             if (notes[temp0].length > 0)
                 draw_long_note(temp0, note_y, notes[temp0].type);
         if (notes[temp0].flag & 0b00000100)
@@ -367,65 +353,70 @@ void update_PlayState(void)
     if (music_hit_req_0 == 1)
     {
         note_splash[0] = false;
-        note_splash_frame[0][0] = 0;
-        note_splash_frame[0][1] = 0;
+        anim_note_splash[0].frame = 0;
+        anim_note_splash[0].delay = 0;
         music_hit_req_0 = 0;
     }
     if (music_hit_req_1 == 1)
     {
         note_splash[1] = false;
-        note_splash_frame[1][0] = 0;
-        note_splash_frame[1][1] = 0;
+        anim_note_splash[1].frame = 0;
+        anim_note_splash[1].delay = 0;
         music_hit_req_1 = 0;
     }
     if (music_hit_req_2 == 1)
     {
         note_splash[2] = false;
-        note_splash_frame[2][0] = 0;
-        note_splash_frame[2][1] = 0;
+        anim_note_splash[2].frame = 0;
+        anim_note_splash[2].delay = 0;
         music_hit_req_2 = 0;
     }
     if (music_hit_req_3 == 1)
     {
         note_splash[3] = false;
-        note_splash_frame[3][0] = 0;
-        note_splash_frame[3][1] = 0;
+        anim_note_splash[3].frame = 0;
+        anim_note_splash[3].delay = 0;
         music_hit_req_3 = 0;
     }
     if (keyUp & KEY_LEFT)
     {
         note_splash[0] = false;
-        note_splash_frame[0][0] = 0;
-        note_splash_frame[0][1] = 0;
+        anim_note_splash[0].frame = 0;
+        anim_note_splash[0].delay = 0;
     }
     if (keyUp & KEY_DOWN)
     {
         note_splash[1] = false;
-        note_splash_frame[1][0] = 0;
-        note_splash_frame[1][1] = 0;
+        anim_note_splash[1].frame = 0;
+        anim_note_splash[1].delay = 0;
     }
     if (keyUp & KEY_UP)
     {
         note_splash[2] = false;
-        note_splash_frame[2][0] = 0;
-        note_splash_frame[2][1] = 0;
+        anim_note_splash[2].frame = 0;
+        anim_note_splash[2].delay = 0;
     }
     if (keyUp & KEY_RIGHT)
     {
         note_splash[3] = false;
-        note_splash_frame[3][0] = 0;
-        note_splash_frame[3][1] = 0;
+        anim_note_splash[3].frame = 0;
+        anim_note_splash[3].delay = 0;
     }
     if (keyUp & KEY_TOUCH)
     {
-        memset(note_splash_frame, 0, sizeof(note_splash_frame));
+        int temp = 0;
+        for(;temp < 4;++temp)
+        {
+            anim_note_splash[temp].frame = 0;
+            anim_note_splash[temp].delay = 0;
+        }
         memset(note_splash, 0, sizeof(note_splash));
     }
 }
 void draw_long_note(int id, float note_y, u8 a)
 {
     float note_end_y = JUDGMENT_LINE_Y - ((notes[id].start + notes[id].length) - time_ms) * scrollSpeed;
-    float scale = (note_y - note_end_y - 20) / 27.0f; 
+    float scale = (note_y - note_end_y - 20) / 27.0f;
     // note_end_y += 20;
     float long_note_x = (STRUMLINE_START_X + a * STRUMLINE_INTERVAL - 23) + 16;
     C2D_DrawImageAt(imgs_note[18 + a * 2], long_note_x, note_end_y + 20, 0, NULL, 1.0f, scale);

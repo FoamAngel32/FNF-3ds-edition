@@ -57,7 +57,6 @@ int main(void)
         osSetSpeedupEnable(true);
     }
 #endif
-    vorbis_init();
     // consoleInit(GFX_TOP, NULL);
     create_audio_thread();
     C3D_Init(C3D_DEFAULT_CMDBUF_SIZE);
@@ -71,11 +70,15 @@ int main(void)
 
     consoleInit(GFX_TOP, NULL);
     // touched = false;
-    load_vorbis("romfs:/music/songs/darnell.ogg", 0);
+    if(!load_vorbis("romfs:/music/songs/darnell.ogg", 0)){
+        printf("ERROR WHILE LOADING VORBIS!!");
+        while (aptMainLoop())
+            gspWaitForVBlank();
+    }
     // load_song_meta_data("romfs:/data/tutorial/metadata.bin");
     if(!load_song("romfs:/data/songs/darnell/darnell-hard.bin"))
     {
-        printf("ERROR!!");
+        printf("ERROR WHILE LOADING CHART!!");
         while (aptMainLoop())
             gspWaitForVBlank();
     }

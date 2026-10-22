@@ -1,6 +1,7 @@
 #include <3ds.h>
 #include <stdio.h>
 #include <malloc.h>
+#include <math.h>
 #include "general.h"
 const char chart_header[] = "EMBEDDEDFNFCHART";
 const char metadata_header[] = "EMBEDDEDFNFMETAD";
@@ -80,3 +81,4 @@ bool load_song(char *restrict song_path)
     gspWaitForVBlank();
     return true;
 }
+

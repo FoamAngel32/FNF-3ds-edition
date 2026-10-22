@@ -1,23 +1,12 @@
-#ifndef VORBIS_C
-#define VORBIS_C
 #include "vorbis.h"
 static const int THREAD_AFFINITY = -1;        // Execute thread on any core
 static const int THREAD_STACK_SZ = 32 * 1024; // 32kB stack for audio thread
 OggVorbis_File vorbis_file[128];
-u8 temp0_audio;
 Thread threadId_audio;
 Thread threadId_ms_counter;
 OggVorbis oggs[23];
 LightEvent s_event;
 volatile bool s_quit = false; // Quit flag
-void vorbis_init(void)
-{
-    int temp;
-    for(temp = 0;temp < 23;++temp)
-    {
-        oggs[temp].s_audioBuffer = NULL;
-    }
-}
 bool audioInit(OggVorbis *vorbisFile_, int chn, int id, float pitch)
 {
     // ov_pcm_seek(&vorbis_file[id], 0);
@@ -33,7 +22,7 @@ bool audioInit(OggVorbis *vorbisFile_, int chn, int id, float pitch)
 
     // Allocate audio buffer
     // 120ms buffer
-    if(vorbisFile_->s_audioBuffer)
+    if (vorbisFile_->s_audioBuffer)
         linearFree(vorbisFile_->s_audioBuffer);
 
     const size_t SAMPLES_PER_BUF = (32000 * pitch) * 120 / 1000;
@@ -60,15 +49,17 @@ bool audioInit(OggVorbis *vorbisFile_, int chn, int id, float pitch)
 }
 void audioExit(void)
 {
-    for (temp0_audio = 0; temp0_audio <= 23; ++temp0_audio)
+    int temp;
+    for (temp = 0; temp < 23; ++temp)
     {
-        stop_vorbis(temp0_audio);
-        ndspChnReset(temp0_audio);
+        stop_vorbis(temp);
+        ndspChnReset(temp);
     }
-    for (temp0_audio = 0; temp0_audio < ARRAY_SIZE(oggs); ++temp0_audio)
+    for (temp = 0; temp < ARRAY_SIZE(oggs); ++temp)
     {
-        ov_clear(&vorbis_file[oggs[temp0_audio].vorbis_id]);
-        linearFree(oggs[temp0_audio].s_audioBuffer);
+        ov_clear(&vorbis_file[oggs[temp].vorbis_id]);
+        if (oggs[temp].s_audioBuffer)
+            linearFree(oggs[temp].s_audioBuffer);
     }
 }
 bool fillBuffer(OggVorbis_File *vorbisFile_, ndspWaveBuf *waveBuf_, int chn)
@@ -112,13 +103,21 @@ bool fillBuffer(OggVorbis_File *vorbisFile_, ndspWaveBuf *waveBuf_, int chn)
 void stop_vorbis(int id)
 {
     oggs[id].done = 1;
+    ndspChnWaveBufClear(oggs[id].chn);
 }
-void load_vorbis(char *restrict song_path, int id)
+bool load_vorbis(char *restrict song_path, int id)
 {
     stop_vorbis(id);
     FILE *fh = fopen(song_path, "rb");
+    if (!fh)
+        return false;
     ov_clear(&vorbis_file[id]);
-    ov_open(fh, &vorbis_file[id], NULL, 0);
+    if (ov_open(fh, &vorbis_file[id], NULL, 0) != 0)
+    {
+        fclose(fh);
+        return false;
+    }
+    return true;
 }
 void audioCallback_ogg(void *const nul_)
 {
@@ -138,37 +137,38 @@ void audioThread(void *const unused)
     { // Whilst the quit flag is unset,
       // search our waveBufs and fill any that aren't currently
       // queued for playback (i.e, those that are 'done')
-        for (temp0_audio = 0; temp0_audio < ARRAY_SIZE(oggs); ++temp0_audio)
+        int temp;
+        for (temp = 0; temp < ARRAY_SIZE(oggs); ++temp)
         {
-            if (oggs[temp0_audio].done == 1)
+            if (oggs[temp].done == 1)
                 continue;
-            // printf("doing for channel %d               \n", temp0_audio);
-            for (size_t i = 0; i < ARRAY_SIZE(oggs[temp0_audio].s_waveBufs); ++i)
+            // printf("doing for channel %d               \n", temp);
+            for (size_t i = 0; i < ARRAY_SIZE(oggs[temp].s_waveBufs); ++i)
             {
-                // printf("%d ", oggs[temp0_audio].s_waveBufs[i].status);
-                if (oggs[temp0_audio].s_waveBufs[i].status != NDSP_WBUF_DONE)
+                // printf("%d ", oggs[temp].s_waveBufs[i].status);
+                if (oggs[temp].s_waveBufs[i].status != NDSP_WBUF_DONE)
                     continue;
-                else if (oggs[temp0_audio].s_waveBufs[i].status == NDSP_WBUF_DONE)
+                else if (oggs[temp].s_waveBufs[i].status == NDSP_WBUF_DONE)
                 {
-                    if (!oggs[temp0_audio].pause)
+                    if (!oggs[temp].pause)
                     {
-                        if (!fillBuffer(&vorbis_file[oggs[temp0_audio].vorbis_id], &oggs[temp0_audio].s_waveBufs[i], oggs[temp0_audio].chn))
+                        if (!fillBuffer(&vorbis_file[oggs[temp].vorbis_id], &oggs[temp].s_waveBufs[i], oggs[temp].chn))
                         { // Playback complete
                             // printf("");
-                            if (oggs[temp0_audio].done == -1)
+                            if (oggs[temp].done == -1)
                             {
-                                play_vorbis(temp0_audio, true, oggs[temp0_audio].vorbis_id, oggs[temp0_audio].pitch);
-                                // audioInit(&oggs[temp0_audio], oggs[temp0_audio].chn, oggs[temp0_audio].vorbis_id, oggs[temp0_audio].pitch);
+                                play_vorbis(temp, true, oggs[temp].vorbis_id, oggs[temp].pitch);
+                                // audioInit(&oggs[temp], oggs[temp].chn, oggs[temp].vorbis_id, oggs[temp].pitch);
                             }
-                            else if (oggs[temp0_audio].done == 0)
-                                oggs[temp0_audio].done = 1;
-                                
+                            else if (oggs[temp].done == 0)
+                                oggs[temp].done = 1;
+
                             break;
                         }
                     }
                 }
-                // else if(oggs[temp0_audio].s_waveBufs[i].status == NDSP_WBUF_DONE){
-                //     memset(&oggs[temp0_audio].s_waveBufs[i], 0, sizeof(oggs[temp0_audio].s_waveBufs[i]));
+                // else if(oggs[temp].s_waveBufs[i].status == NDSP_WBUF_DONE){
+                //     memset(&oggs[temp].s_waveBufs[i], 0, sizeof(oggs[temp].s_waveBufs[i]));
                 // }
             }
             // printf("\n");
@@ -193,7 +193,8 @@ void play_vorbis(int chn, bool loop, int id, float pitch)
 void pause_vorbis(int id, bool pause)
 {
     oggs[id].pause = pause;
-    ndspChnSetPaused(oggs[id].chn, pause); 
+    // ndspChnWaveBufClear(oggs[id].chn);
+    ndspChnSetPaused(oggs[id].chn, pause);
 }
 void create_audio_thread(void)
 {
@@ -211,12 +212,13 @@ void create_audio_thread(void)
 
     // Start the thread, passing the address of our vorbisFile as an argument.
     ndspSetCallback(audioCallback_ogg, NULL);
-    for (temp0_audio = 0; temp0_audio <= 23; ++temp0_audio)
+    int temp;
+    for (temp = 0; temp < 23; ++temp)
     {
-        oggs[temp0_audio].done = 1;
+        oggs[temp].done = 1;
+        oggs[temp].s_audioBuffer = NULL;
     }
     threadId_audio = threadCreate(audioThread, NULL,
                                   THREAD_STACK_SZ, priority,
                                   THREAD_AFFINITY, true);
 }
-#endif
