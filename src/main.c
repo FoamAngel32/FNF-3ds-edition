@@ -30,7 +30,6 @@ C2D_SpriteSheet sprite_sheets[4];
 Note *notes = NULL;
 u32 note_count;
 float scrollSpeed;
-float health;
 u16 freeplay_song_rating;
 u8 end;
 int state;

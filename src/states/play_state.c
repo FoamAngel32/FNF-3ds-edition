@@ -11,9 +11,12 @@ u8 music_hit_req_1;
 u8 music_hit_req_2;
 u8 music_hit_req_3;
 u64 last_tick;
+float health;
+float display_health;
 bool note_splash[4];
 C2D_Image imgs_note[26];
 Animation anim_note_splash[4];
+C2D_ImageTint bottom_bg_tint;
 void draw_long_note(int id, float note_y, u8 a);
 void init_PlayState(void)
 {
@@ -59,6 +62,9 @@ void init_PlayState(void)
     imgs_note[24] = C2D_SpriteSheetGetImage(sprite_sheets[2], 10);
     imgs_note[25] = C2D_SpriteSheetGetImage(sprite_sheets[2], 11);
 
+   
+    C2D_PlainImageTint(&bottom_bg_tint, C2D_Color32(49, 38, 51, 255), 1.0f);
+
     int temp;
     for (temp = 0; temp < 4; ++temp)
     {
@@ -85,12 +91,14 @@ void update_PlayState(void)
         game_paused = !game_paused;
         pause_vorbis(0, game_paused);
     }
+    display_health += (health - display_health) / 6.0f;
     C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
     // C2D_SceneBegin(top_target);
     // C2D_TargetClear(top_target, C2D_Color32f(0, 0, 0, 1));
     C2D_SceneBegin(bottom_target);
-    C2D_TargetClear(bottom_target, C2D_Color32f(0, 0, 0, 1));
-    C2D_DrawImageAt(imgs_note[0], 0, 0, 0, NULL, 1.0f, 1.0f);
+    C2D_TargetClear(bottom_target, C2D_Color32(62, 48, 64, 255));
+    C2D_DrawImageAt(imgs_note[0], 0, 0, 0, &bottom_bg_tint, 1.0f, 1.0f);
+    // 
     int temp0;
     if (keyHeld & KEY_LEFT || held_area(STRUMLINE_START_X + 0 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
     {
@@ -235,7 +243,7 @@ void update_PlayState(void)
             }
             if (((notes[temp0].flag & 0b00000010) == 0) && (notes[temp0].flag & 0b00000001) != 0)
             {
-                if (notes[temp0].type == 0 && !note_splash[0])
+                if (notes[temp0].type == 0)
                 {
                     if (keyHeld & KEY_LEFT || held_area(STRUMLINE_START_X + 0 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
                     {

@@ -2,7 +2,8 @@
 #define ANIMATION_H
 #include <3ds.h>
 
-typedef struct{
+typedef struct
+{
     float frame;
     float frame_speed;
     float delay;
@@ -13,6 +14,6 @@ typedef struct{
     bool enabled;
 } Animation;
 
-u32 play_animation(Animation* animation);
+u32 play_animation(Animation *animation);
 
 #endif

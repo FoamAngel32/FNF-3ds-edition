@@ -1,12 +1,14 @@
 #ifndef GENERAL_H
 #define GENERAL_H
 #include <citro2d.h>
-enum GameStates {
+enum GameStates
+{
     STATE_MENU = 0,
     STATE_SELECT = 1,
     STATE_PLAY = 2,
 };
-typedef struct{
+typedef struct
+{
     float start;
     float length;
     char type;

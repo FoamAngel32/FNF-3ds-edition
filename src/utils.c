@@ -45,11 +45,10 @@ bool load_song(char *restrict song_path)
     u8 buffer[9];
     unsigned char raw_float[4];
     int temp0;
-    char magic[17];
+    char magic[16];
     FILE *fh = fopen(song_path, "rb");
     if (!fh)
         return false;
-    magic[16] = 0;
     fread(magic, 1, 16, fh);
     if (memcmp(magic, chart_header, 16) != 0)
     {
@@ -78,7 +77,6 @@ bool load_song(char *restrict song_path)
         // printf("Loading... %d\n", temp0);
     }
     fclose(fh);
-    gspWaitForVBlank();
     return true;
 }
 
