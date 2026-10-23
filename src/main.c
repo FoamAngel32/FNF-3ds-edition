@@ -8,7 +8,6 @@
 #include <sys/stat.h>
 #include <malloc.h>
 #include <string.h>
-#include "states/play_state.h"
 #include "general.h"
 #include "vorbis.h"
 #include "utils.h"
@@ -19,9 +18,9 @@ typedef uint64_t u64; ///< 64-bit unsigned integer
 // ---- DEFINITIONS ----
 
 C3D_RenderTarget *top_target, *bottom_target;
-// C3D_RenderTarget *bottom_target;
+C2D_SpriteSheet sprite_sheets[8];
+C2D_Image images[128];
 // C2D_SpriteSheet temp_sheet;
-C2D_SpriteSheet sprite_sheets[4];
 // C2D_Font fonts[2];
 // static C2D_TextBuf staticTextBuf;
 // static C2D_Text texts[9];
@@ -36,7 +35,6 @@ int state;
 touchPosition touch;
 u32 keyHeld, keyDown, keyUp;
 u32 temp1;
-u8 counter_end;
 bool is_new_3ds;
 // void load_song_meta_data(char *restrict song_path);
 int main(void)
@@ -63,6 +61,9 @@ int main(void)
     C2D_Prepare();
     // staticTextBuf = C2D_TextBufNew(256);
     // printer_text_buf = C2D_TextBufNew(256);
+    int temp;
+    for(temp = 0; temp < 3; ++temp)
+        sprite_sheets[temp] = NULL;
     // top_target = C2D_CreateScreenTarget(GFX_TOP, GFX_LEFT);
     bottom_target = C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT);
 
@@ -85,6 +86,7 @@ int main(void)
     // printf("%d ", R_SUCCEEDED(result));
     // printf("%d\n", is_new_3ds);
     func_state_init[STATE_PLAY]();
+    gspWaitForVBlank();
     while (aptMainLoop() && !end)
     {
         hidScanInput();
@@ -97,7 +99,6 @@ int main(void)
             func_state_update[state]();
         gspWaitForVBlank();
     }
-    counter_end = true;
     free(notes);
     aptExit();
     hidExit();

@@ -10,11 +10,11 @@ u8 music_hit_req_0;
 u8 music_hit_req_1;
 u8 music_hit_req_2;
 u8 music_hit_req_3;
+u32 total_miss;
 u64 last_tick;
 float health;
 float display_health;
 bool note_splash[4];
-C2D_Image imgs_note[26];
 Animation anim_note_splash[4];
 C2D_ImageTint bottom_bg_tint;
 void draw_long_note(int id, float note_y, u8 a);
@@ -22,50 +22,52 @@ void init_PlayState(void)
 {
     state = STATE_PLAY;
     time_ms = 0;
+    int temp;
+    for(temp = 0; temp < 8; ++temp)
+        if(sprite_sheets[temp])
+            C2D_SpriteSheetFree(sprite_sheets[temp]);
     sprite_sheets[0] = C2D_SpriteSheetLoad("romfs:/gfx/bottom_bg.t3x");
     sprite_sheets[1] = C2D_SpriteSheetLoad("romfs:/gfx/strumlinenote.t3x");
     sprite_sheets[2] = C2D_SpriteSheetLoad("romfs:/gfx/note.t3x");
-    imgs_note[0] = C2D_SpriteSheetGetImage(sprite_sheets[0], 0);
+    images[0] = C2D_SpriteSheetGetImage(sprite_sheets[0], 0);
 
-    imgs_note[1] = C2D_SpriteSheetGetImage(sprite_sheets[1], 0);
-    imgs_note[2] = C2D_SpriteSheetGetImage(sprite_sheets[1], 1);
-    imgs_note[3] = C2D_SpriteSheetGetImage(sprite_sheets[1], 2);
-    imgs_note[4] = C2D_SpriteSheetGetImage(sprite_sheets[1], 3);
-    imgs_note[5] = C2D_SpriteSheetGetImage(sprite_sheets[1], 4);
+    images[1] = C2D_SpriteSheetGetImage(sprite_sheets[1], 0);
+    images[2] = C2D_SpriteSheetGetImage(sprite_sheets[1], 1);
+    images[3] = C2D_SpriteSheetGetImage(sprite_sheets[1], 2);
+    images[4] = C2D_SpriteSheetGetImage(sprite_sheets[1], 3);
+    images[5] = C2D_SpriteSheetGetImage(sprite_sheets[1], 4);
 
-    imgs_note[6] = C2D_SpriteSheetGetImage(sprite_sheets[2], 0);
-    imgs_note[7] = C2D_SpriteSheetGetImage(sprite_sheets[2], 1);
-    imgs_note[8] = C2D_SpriteSheetGetImage(sprite_sheets[2], 2);
-    imgs_note[9] = C2D_SpriteSheetGetImage(sprite_sheets[2], 3);
+    images[6] = C2D_SpriteSheetGetImage(sprite_sheets[2], 0);
+    images[7] = C2D_SpriteSheetGetImage(sprite_sheets[2], 1);
+    images[8] = C2D_SpriteSheetGetImage(sprite_sheets[2], 2);
+    images[9] = C2D_SpriteSheetGetImage(sprite_sheets[2], 3);
 
-    imgs_note[10] = C2D_SpriteSheetGetImage(sprite_sheets[1], 5);
-    imgs_note[11] = C2D_SpriteSheetGetImage(sprite_sheets[1], 6);
+    images[10] = C2D_SpriteSheetGetImage(sprite_sheets[1], 5);
+    images[11] = C2D_SpriteSheetGetImage(sprite_sheets[1], 6);
 
-    imgs_note[12] = C2D_SpriteSheetGetImage(sprite_sheets[1], 7);
-    imgs_note[13] = C2D_SpriteSheetGetImage(sprite_sheets[1], 8);
+    images[12] = C2D_SpriteSheetGetImage(sprite_sheets[1], 7);
+    images[13] = C2D_SpriteSheetGetImage(sprite_sheets[1], 8);
 
-    imgs_note[14] = C2D_SpriteSheetGetImage(sprite_sheets[1], 9);
-    imgs_note[15] = C2D_SpriteSheetGetImage(sprite_sheets[1], 10);
+    images[14] = C2D_SpriteSheetGetImage(sprite_sheets[1], 9);
+    images[15] = C2D_SpriteSheetGetImage(sprite_sheets[1], 10);
 
-    imgs_note[16] = C2D_SpriteSheetGetImage(sprite_sheets[1], 11);
-    imgs_note[17] = C2D_SpriteSheetGetImage(sprite_sheets[1], 12);
+    images[16] = C2D_SpriteSheetGetImage(sprite_sheets[1], 11);
+    images[17] = C2D_SpriteSheetGetImage(sprite_sheets[1], 12);
 
-    imgs_note[18] = C2D_SpriteSheetGetImage(sprite_sheets[2], 4);
-    imgs_note[19] = C2D_SpriteSheetGetImage(sprite_sheets[2], 5);
+    images[18] = C2D_SpriteSheetGetImage(sprite_sheets[2], 4);
+    images[19] = C2D_SpriteSheetGetImage(sprite_sheets[2], 5);
 
-    imgs_note[20] = C2D_SpriteSheetGetImage(sprite_sheets[2], 6);
-    imgs_note[21] = C2D_SpriteSheetGetImage(sprite_sheets[2], 7);
+    images[20] = C2D_SpriteSheetGetImage(sprite_sheets[2], 6);
+    images[21] = C2D_SpriteSheetGetImage(sprite_sheets[2], 7);
 
-    imgs_note[22] = C2D_SpriteSheetGetImage(sprite_sheets[2], 8);
-    imgs_note[23] = C2D_SpriteSheetGetImage(sprite_sheets[2], 9);
+    images[22] = C2D_SpriteSheetGetImage(sprite_sheets[2], 8);
+    images[23] = C2D_SpriteSheetGetImage(sprite_sheets[2], 9);
 
-    imgs_note[24] = C2D_SpriteSheetGetImage(sprite_sheets[2], 10);
-    imgs_note[25] = C2D_SpriteSheetGetImage(sprite_sheets[2], 11);
+    images[24] = C2D_SpriteSheetGetImage(sprite_sheets[2], 10);
+    images[25] = C2D_SpriteSheetGetImage(sprite_sheets[2], 11);
 
-   
     C2D_PlainImageTint(&bottom_bg_tint, C2D_Color32(49, 38, 51, 255), 1.0f);
 
-    int temp;
     for (temp = 0; temp < 4; ++temp)
     {
         anim_note_splash[temp].max_delay = anim_note_splash[temp].total_frame = anim_note_splash[temp].loop_point = 1;
@@ -91,14 +93,16 @@ void update_PlayState(void)
         game_paused = !game_paused;
         pause_vorbis(0, game_paused);
     }
-    display_health += (health - display_health) / 6.0f;
+    u32 green = C2D_Color32(0, 255, 0, 255);
+    u32 red = C2D_Color32(255, 0, 0, 255);
+    u32 black = C2D_Color32(0, 0, 0, 255);
+    display_health += (health - display_health) / 3.0f;
     C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
     // C2D_SceneBegin(top_target);
     // C2D_TargetClear(top_target, C2D_Color32f(0, 0, 0, 1));
     C2D_SceneBegin(bottom_target);
     C2D_TargetClear(bottom_target, C2D_Color32(62, 48, 64, 255));
-    C2D_DrawImageAt(imgs_note[0], 0, 0, 0, &bottom_bg_tint, 1.0f, 1.0f);
-    // 
+    C2D_DrawImageAt(images[0], 0, 0, 0, &bottom_bg_tint, 1.0f, 1.0f);
     int temp0;
     if (keyHeld & KEY_LEFT || held_area(STRUMLINE_START_X + 0 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
     {
@@ -117,13 +121,13 @@ void update_PlayState(void)
         if (note_splash[0])
         {
             anim_note_splash[0].enabled = true;
-            C2D_DrawImageAtRotated(imgs_note[10 + play_animation(&anim_note_splash[0])], STRUMLINE_START_X + 0 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, 0, NULL, 1.0f, 1.0f);
+            C2D_DrawImageAtRotated(images[10 + play_animation(&anim_note_splash[0])], STRUMLINE_START_X + 0 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, 0, NULL, 1.0f, 1.0f);
         }
         else
-            C2D_DrawImageAtRotated(imgs_note[2], STRUMLINE_START_X + 0 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, 0, NULL, 1.0f, 1.0f);
+            C2D_DrawImageAtRotated(images[2], STRUMLINE_START_X + 0 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, 0, NULL, 1.0f, 1.0f);
     }
     else
-        C2D_DrawImageAtRotated(imgs_note[1], STRUMLINE_START_X + 0 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, (90 * M_PI / 180.0f), NULL, 1.0f, 1.0f);
+        C2D_DrawImageAtRotated(images[1], STRUMLINE_START_X + 0 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, (90 * M_PI / 180.0f), NULL, 1.0f, 1.0f);
     if (keyHeld & KEY_DOWN || held_area(STRUMLINE_START_X + 1 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
     {
         if (music_hit_req_1 == 255)
@@ -142,13 +146,13 @@ void update_PlayState(void)
         if (note_splash[1])
         {
             anim_note_splash[1].enabled = true;
-            C2D_DrawImageAtRotated(imgs_note[12 + play_animation(&anim_note_splash[1])], STRUMLINE_START_X + 1 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, 0, NULL, 1.0f, 1.0f);
+            C2D_DrawImageAtRotated(images[12 + play_animation(&anim_note_splash[1])], STRUMLINE_START_X + 1 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, 0, NULL, 1.0f, 1.0f);
         }
         else
-            C2D_DrawImageAtRotated(imgs_note[3], STRUMLINE_START_X + 1 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, 0, NULL, 1.0f, 1.0f);
+            C2D_DrawImageAtRotated(images[3], STRUMLINE_START_X + 1 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, 0, NULL, 1.0f, 1.0f);
     }
     else
-        C2D_DrawImageAtRotated(imgs_note[1], STRUMLINE_START_X + 1 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, 0, NULL, 1.0f, 1.0f);
+        C2D_DrawImageAtRotated(images[1], STRUMLINE_START_X + 1 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, 0, NULL, 1.0f, 1.0f);
     if (keyHeld & KEY_UP || held_area(STRUMLINE_START_X + 2 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
     {
         if (music_hit_req_2 == 255)
@@ -166,13 +170,13 @@ void update_PlayState(void)
         if (note_splash[2])
         {
             anim_note_splash[2].enabled = true;
-            C2D_DrawImageAtRotated(imgs_note[14 + play_animation(&anim_note_splash[2])], STRUMLINE_START_X + 2 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, 0, NULL, 1.0f, 1.0f);
+            C2D_DrawImageAtRotated(images[14 + play_animation(&anim_note_splash[2])], STRUMLINE_START_X + 2 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, 0, NULL, 1.0f, 1.0f);
         }
         else
-            C2D_DrawImageAtRotated(imgs_note[4], STRUMLINE_START_X + 2 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, 0, NULL, 1.0f, 1.0f);
+            C2D_DrawImageAtRotated(images[4], STRUMLINE_START_X + 2 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, 0, NULL, 1.0f, 1.0f);
     }
     else
-        C2D_DrawImageAtRotated(imgs_note[1], STRUMLINE_START_X + 2 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, (180 * M_PI / 180.0f), NULL, 1.0f, 1.0f);
+        C2D_DrawImageAtRotated(images[1], STRUMLINE_START_X + 2 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, (180 * M_PI / 180.0f), NULL, 1.0f, 1.0f);
     if (keyHeld & KEY_RIGHT || held_area(STRUMLINE_START_X + 3 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
     {
         if (music_hit_req_3 == 255)
@@ -190,19 +194,31 @@ void update_PlayState(void)
         if (note_splash[3])
         {
             anim_note_splash[3].enabled = true;
-            C2D_DrawImageAtRotated(imgs_note[16 + play_animation(&anim_note_splash[3])], STRUMLINE_START_X + 3 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, 0, NULL, 1.0f, 1.0f);
+            C2D_DrawImageAtRotated(images[16 + play_animation(&anim_note_splash[3])], STRUMLINE_START_X + 3 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, 0, NULL, 1.0f, 1.0f);
         }
         else
-            C2D_DrawImageAtRotated(imgs_note[5], STRUMLINE_START_X + 3 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, 0, NULL, 1.0f, 1.0f);
+            C2D_DrawImageAtRotated(images[5], STRUMLINE_START_X + 3 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, 0, NULL, 1.0f, 1.0f);
     }
     else
-        C2D_DrawImageAtRotated(imgs_note[1], STRUMLINE_START_X + 3 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, (-90 * M_PI / 180.0f), NULL, 1.0f, 1.0f);
+        C2D_DrawImageAtRotated(images[1], STRUMLINE_START_X + 3 * STRUMLINE_INTERVAL, JUDGMENT_LINE_Y, 0, (-90 * M_PI / 180.0f), NULL, 1.0f, 1.0f);
     for (temp0 = 0; temp0 < note_count; ++temp0)
     {
         float note_y = JUDGMENT_LINE_Y - (notes[temp0].start - time_ms) * scrollSpeed + 10;
         float note_end_y = JUDGMENT_LINE_Y - ((notes[temp0].start + notes[temp0].length) - time_ms) * scrollSpeed + 10;
-        if ((note_y < -50) || (note_end_y > 300))
+        if (note_y < -50)
             continue;
+        if(note_end_y > 300)
+        {
+            if(((notes[temp0].flag & 0b00001000) == 0) && (notes[temp0].type < 4) && ((notes[temp0].flag & 0b00000001) == 0) && (notes[temp0].length <= 0.0f))
+            {
+                printf("MISS!!\n");
+                total_miss += 1;
+                notes[temp0].flag |= 0b00001000;
+                health -= 0.0475f;
+                if(health < -1.0f) health = -1.0f;
+            }
+            continue;
+        }
 
         if (((time_ms < (notes[temp0].start + NOTE_WINDOW))) && (time_ms > (notes[temp0].start - NOTE_WINDOW)))
         {
@@ -214,6 +230,7 @@ void update_PlayState(void)
                     {
                         notes[temp0].flag |= 0b1;
                         notes[temp0].flag |= 0b00000100;
+                        health += 0.0475f;
                     }
                 }
                 else if (notes[temp0].type == 1)
@@ -222,6 +239,7 @@ void update_PlayState(void)
                     {
                         notes[temp0].flag |= 0b1;
                         notes[temp0].flag |= 0b00000100;
+                        health += 0.0475f;
                     }
                 }
                 else if (notes[temp0].type == 2)
@@ -230,6 +248,7 @@ void update_PlayState(void)
                     {
                         notes[temp0].flag |= 0b1;
                         notes[temp0].flag |= 0b00000100;
+                        health += 0.0475f;
                     }
                 }
                 else if (notes[temp0].type == 3)
@@ -238,8 +257,10 @@ void update_PlayState(void)
                     {
                         notes[temp0].flag |= 0b1;
                         notes[temp0].flag |= 0b00000100;
+                        health += 0.0475f;
                     }
                 }
+                if(health > 1.0f)health = 1.0f;
             }
             if (((notes[temp0].flag & 0b00000010) == 0) && (notes[temp0].flag & 0b00000001) != 0)
             {
@@ -264,7 +285,7 @@ void update_PlayState(void)
                         }
                     }
                 }
-                else if (notes[temp0].type == 1 && !note_splash[1])
+                else if (notes[temp0].type == 1)
                 {
                     if (keyHeld & KEY_DOWN || held_area(STRUMLINE_START_X + 1 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
                     {
@@ -285,7 +306,7 @@ void update_PlayState(void)
                         }
                     }
                 }
-                else if (notes[temp0].type == 2 && !note_splash[2])
+                else if (notes[temp0].type == 2)
                 {
                     // printf("UP KEY!");
                     if (keyHeld & KEY_UP || held_area(STRUMLINE_START_X + 2 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
@@ -307,7 +328,7 @@ void update_PlayState(void)
                         }
                     }
                 }
-                else if (notes[temp0].type == 3 && !note_splash[3])
+                else if (notes[temp0].type == 3)
                 {
                     if (keyHeld & KEY_RIGHT || held_area(STRUMLINE_START_X + 3 * STRUMLINE_INTERVAL - 23, JUDGMENT_LINE_Y - 23, 46, 46))
                     {
@@ -339,24 +360,29 @@ void update_PlayState(void)
         if (notes[temp0].type == 0)
         {
             // printf("LEFT KEY!");
-            C2D_DrawImageAt(imgs_note[6], STRUMLINE_START_X + 0 * STRUMLINE_INTERVAL - 32, note_y - 32, 0, NULL, 1.0f, 1.0f);
+            C2D_DrawImageAt(images[6], STRUMLINE_START_X + 0 * STRUMLINE_INTERVAL - 32, note_y - 32, 0, NULL, 1.0f, 1.0f);
         }
         else if (notes[temp0].type == 1)
         {
             // printf("DOWN KEY!");
-            C2D_DrawImageAt(imgs_note[7], STRUMLINE_START_X + 1 * STRUMLINE_INTERVAL - 32, note_y - 32, 0, NULL, 1.0f, 1.0f);
+            C2D_DrawImageAt(images[7], STRUMLINE_START_X + 1 * STRUMLINE_INTERVAL - 32, note_y - 32, 0, NULL, 1.0f, 1.0f);
         }
         else if (notes[temp0].type == 2)
         {
             // printf("UP KEY!");
-            C2D_DrawImageAt(imgs_note[8], STRUMLINE_START_X + 2 * STRUMLINE_INTERVAL - 32, note_y - 32, 0, NULL, 1.0f, 1.0f);
+            C2D_DrawImageAt(images[8], STRUMLINE_START_X + 2 * STRUMLINE_INTERVAL - 32, note_y - 32, 0, NULL, 1.0f, 1.0f);
         }
         else if (notes[temp0].type == 3)
         {
             // printf("RIGHT KEY!");
-            C2D_DrawImageAt(imgs_note[9], STRUMLINE_START_X + 3 * STRUMLINE_INTERVAL - 32, note_y - 32, 0, NULL, 1.0f, 1.0f);
+            C2D_DrawImageAt(images[9], STRUMLINE_START_X + 3 * STRUMLINE_INTERVAL - 32, note_y - 32, 0, NULL, 1.0f, 1.0f);
         }
     }
+    float red_len = 279 * (1-display_health) / 2.0f;
+    C2D_DrawRectSolid(16, 10, 0, 285, 9, black);
+    C2D_DrawRectSolid(20, 12, 0, red_len, 5, red);
+    C2D_DrawRectSolid(20 + red_len, 12, 0, 279 * (display_health+1) / 2.0f, 5, green);
+    // C2D_DrawImageAt(images[26], 13, 10, 0, NULL, 1.0f, 1.0f);
     C3D_FrameEnd(0);
     if (music_hit_req_0 == 1)
     {
@@ -427,7 +453,7 @@ void draw_long_note(int id, float note_y, u8 a)
     float scale = (note_y - note_end_y - 20) / 27.0f;
     // note_end_y += 20;
     float long_note_x = (STRUMLINE_START_X + a * STRUMLINE_INTERVAL - 23) + 16;
-    C2D_DrawImageAt(imgs_note[18 + a * 2], long_note_x, note_end_y + 20, 0, NULL, 1.0f, scale);
+    C2D_DrawImageAt(images[18 + a * 2], long_note_x, note_end_y + 20, 0, NULL, 1.0f, scale);
     // current_y -= 20;
-    C2D_DrawImageAt(imgs_note[19 + a * 2], long_note_x, note_end_y, 0, NULL, 1.0f, -1.0f);
+    C2D_DrawImageAt(images[19 + a * 2], long_note_x, note_end_y, 0, NULL, 1.0f, -1.0f);
 }

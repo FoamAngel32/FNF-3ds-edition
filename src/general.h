@@ -24,15 +24,17 @@ typedef void (*StateFunction)(void);
 #define SPLASH_ANIM_SPEED (2)
 #define TOTAL_STATE (3)
 
+
+extern C3D_RenderTarget *top_target, *bottom_target;
+extern C2D_SpriteSheet sprite_sheets[8];
+extern C2D_Image images[128];
 extern Note *notes;
 extern float scrollSpeed;
 extern u32 note_count;
 extern u32 keyHeld, keyDown, keyUp;
 extern touchPosition touch;
-extern C2D_SpriteSheet sprite_sheets[4];
 extern int state;
-extern C3D_RenderTarget *top_target, *bottom_target;
-extern float scrollSpeed;
+
 
 extern StateFunction func_state_init[TOTAL_STATE];
 extern StateFunction func_state_update[TOTAL_STATE];
