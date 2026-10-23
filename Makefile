@@ -33,7 +33,7 @@ include $(DEVKITARM)/3ds_rules
 #---------------------------------------------------------------------------------
 TARGET		:=	$(notdir $(CURDIR))
 BUILD		:=	build
-SOURCES		:=	src
+SOURCES		:=	src src/states
 DATA		:=	res/data
 INCLUDES	:=	include
 GRAPHICS	:=	res/gfx
@@ -58,7 +58,7 @@ CXXFLAGS	:= $(CFLAGS) -fno-rtti -fno-exceptions -std=gnu++11
 ASFLAGS	:=	-g $(ARCH)
 LDFLAGS	=	-specs=3dsx.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
 
-LIBS	:= -lcitro2d -lcitro3d -lctru -lm `$(PREFIX)pkg-config vorbisidec libmodplug --libs` 
+LIBS	:= -lcitro2d -lcitro3d -lctru -lm `$(PREFIX)pkg-config vorbisidec --libs` 
 
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing
@@ -164,6 +164,7 @@ ifneq ($(ROMFS),)
 endif
 
 .PHONY: all clean
+EMU_PATH = G:/azahar
 
 #---------------------------------------------------------------------------------
 all: clean $(BUILD) $(GFXBUILD) $(DEPSDIR) $(ROMFS_T3XFILES) $(ROMFS_FONTFILES) $(T3XHFILES)
@@ -175,8 +176,7 @@ all: clean $(BUILD) $(GFXBUILD) $(DEPSDIR) $(ROMFS_T3XFILES) $(ROMFS_FONTFILES) 
 	@mv $(TARGET).elf $(BUILD)/
 	@mv $(TARGET).3dsx $(BUILD)/
 run: all
-	@$(CITRA_PATH)/citra-qt $(BUILD)/$(TARGET).3dsx&
-
+	@$(EMU_PATH)/azahar $(BUILD)/$(TARGET).3dsx&
 $(ROMFS)/audio/%.ogg: res/audio/%.ogg
 	@mkdir -p $(dir $@)
 	@ffmpeg -y -i $< -ac 1 $@
