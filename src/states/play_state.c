@@ -17,6 +17,7 @@ float display_health;
 bool note_splash[4];
 Animation anim_note_splash[4];
 C2D_ImageTint bottom_bg_tint;
+u16 current_event_idx;
 void draw_long_note(int id, float note_y, u8 a);
 void init_PlayState(void)
 {
@@ -384,6 +385,12 @@ void update_PlayState(void)
     C2D_DrawRectSolid(20 + red_len, 12, 0, 279 * (display_health+1) / 2.0f, 5, green);
     // C2D_DrawImageAt(images[26], 13, 10, 0, NULL, 1.0f, 1.0f);
     C3D_FrameEnd(0);
+    if(current_event_idx < event_count && time_ms >= events[current_event_idx].time)
+    {
+        if (events[current_event_idx].id < TOTAL_EVENT_TYPES)
+            events_trigger[events[current_event_idx].id](events[current_event_idx].args);
+        current_event_idx++;
+    }
     if (music_hit_req_0 == 1)
     {
         note_splash[0] = false;

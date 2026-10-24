@@ -27,7 +27,10 @@ C2D_Image images[128];
 // static C2D_TextBuf printer_text_buf;
 // static C2D_Text printer_text;
 Note *notes = NULL;
+Event *events = NULL;
 u32 note_count;
+u32 event_count;
+float bpm;
 float scrollSpeed;
 u16 freeplay_song_rating;
 u8 end;
@@ -76,9 +79,15 @@ int main(void)
             gspWaitForVBlank();
     }
     // load_song_meta_data("romfs:/data/tutorial/metadata.bin");
-    if(!load_song("romfs:/data/songs/darnell/darnell-hard.bin"))
+    if(!load_chart("romfs:/data/songs/darnell/darnell-hard.bin"))
     {
         printf("ERROR WHILE LOADING CHART!!");
+        while (aptMainLoop())
+            gspWaitForVBlank();
+    }
+    if(!load_events("romfs:/data/songs/darnell/events.bin"))
+    {
+        printf("ERROR WHILE LOADING EVENTS!!");
         while (aptMainLoop())
             gspWaitForVBlank();
     }
